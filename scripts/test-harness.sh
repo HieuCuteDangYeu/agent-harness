@@ -24,6 +24,13 @@ test -f "$TMP/.agents/skills/shared-memory/SKILL.md"
 grep -q 'agentmemory' "$TMP/.agents/skills/shared-memory/SKILL.md"
 test ! -e "$TMP/scripts/agents/agent-memory"
 test ! -e "$TMP/.agent-harness-version"
+test ! -e "$TMP/.github/ISSUE_TEMPLATE/agent-task.md"
+test ! -e "$TMP/.github/pull_request_template.md"
+test ! -e "$ROOT/templates/.github/ISSUE_TEMPLATE/agent-task.md"
+test ! -e "$ROOT/templates/.github/pull_request_template.md"
+! grep -q 'copy_if_missing .*\.github' "$ROOT/bin/agent-harness"
+! grep -q 'check "\.github/' "$ROOT/bin/agent-harness"
+grep -q 'obsolete generated template' "$ROOT/bin/agent-harness"
 test "$("$ROOT/bin/agent-harness" version)" = "$(cat "$ROOT/VERSION")"
 
 # v0.3.x migration: known Tencent/generated memory references are replaced/removed.
