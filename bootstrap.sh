@@ -25,7 +25,6 @@ else
 fi
 
 ln -sf "$INSTALL_DIR/bin/agent-harness" "$BIN_DIR/agent-harness"
-ln -sf "$INSTALL_DIR/bin/agent-memory" "$BIN_DIR/agent-memory"
 
 if [[ ":$PATH:" != *":$BIN_DIR:"* ]]; then
   echo "NOTE: $BIN_DIR is not currently on PATH; the bootstrap will run by absolute path now."

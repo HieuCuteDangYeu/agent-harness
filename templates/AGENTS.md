@@ -17,7 +17,7 @@ Never override a higher-priority instruction with a lower-priority one.
 Before implementation:
 
 1. Understand the requested behavior.
-2. For substantial work, check shared memory when `agent-memory` is available and historical context could matter.
+2. For substantial work, use agentmemory recall when its MCP tools are available and historical context could matter.
 3. Inspect the actual current execution path in the repository.
 4. Locate relevant tests.
 5. Search for an analogous existing implementation.

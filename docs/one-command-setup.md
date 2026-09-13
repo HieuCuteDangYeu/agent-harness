@@ -1,34 +1,22 @@
 # One-command setup
 
-This guide documents the **single supported onboarding path** for `agent-harness`.
+This is the **single supported onboarding path** for `agent-harness`.
 
-Do not start by cloning this repository manually or by running individual setup scripts. The bootstrap command below installs/updates the harness and then runs the project setup in the correct order.
+## 1. Prerequisites
 
-## 1. Check prerequisites
-
-The machine should already have:
+Install these first:
 
 ```text
-Required:
-- git
-- bash
-- curl
-- Codex CLI
-
-Required for shared memory:
-- Docker running
-
-Optional:
-- Antigravity/Gemini CLI
+git
+bash
+curl
+Node.js 20+ with npm/npx
+Codex CLI
 ```
 
-The harness does not install Codex or Docker because those are machine-level choices.
+Antigravity/Gemini CLI is optional. Docker is not required for the default memory setup.
 
 ## 2. Enter the project
-
-Run the setup from the Git repository you actually want to prepare.
-
-Example:
 
 ```bash
 cd ~/Projects/my-project
@@ -36,134 +24,123 @@ cd ~/Projects/my-project
 
 ## 3. Run the setup command
 
-Run exactly:
-
 ```bash
 bash <(curl -fsSL https://raw.githubusercontent.com/HieuCuteDangYeu/agent-harness/main/bootstrap.sh)
 ```
 
-The bootstrap performs these operations in order:
+The command:
 
 1. installs or updates `agent-harness` under `~/.local/share/agent-harness`
-2. links `agent-harness` and `agent-memory` into `~/.local/bin`
-3. runs `agent-harness ready .` against the current repository
-4. installs the repository harness files without overwriting existing managed files
-5. detects Codex, Antigravity/Gemini, Docker, Git, and curl
+2. links `agent-harness` into `~/.local/bin`
+3. runs `agent-harness ready .`
+4. installs the repository harness files
+5. detects Codex, Antigravity/Gemini, Node, npx, Git, and curl
 6. offers Ponytail setup
 7. offers `codex-chatgpt-web` setup
-8. offers TencentDB Agent Memory setup
-9. runs the harness readiness check
-10. prints the remaining one-time account/UI steps
+8. offers keyless local `agentmemory` setup
+9. wires agentmemory into detected coding agents
+10. runs readiness checks
 
-## 4. Answer the setup prompts
+## 4. Answer the prompts
 
-For the complete workflow, choose `Y` for all three integrations:
+For the complete workflow:
 
 ```text
 Install/update Ponytail for detected coding agents?       Y
 Install/update the codex-chatgpt-web launcher?            Y
-Provision TencentDB Agent Memory locally with Docker?     Y
+Set up keyless local agentmemory (no API key)?             Y
 ```
 
-Why each one exists:
+### What agentmemory setup does
 
-| Integration | Purpose |
-|---|---|
-| Ponytail | Keeps implementations simple, surgical, and YAGNI-oriented |
-| `codex-chatgpt-web` | Makes ChatGPT Web available through Codex and exposes the Full Harness local tool surface |
-| TencentDB Agent Memory | Gives Codex/ChatGPT/other agents shared historical memory, extracted skills, Wiki, and CodeGraph |
-
-`codex-chatgpt-web` requires an explicit `Y` because it is an unofficial browser-automation integration. The harness does not silently enable it.
-
-## 5. Configure the memory LLM when prompted
-
-If Tencent memory is enabled, the setup asks for:
+The harness uses the upstream `@agentmemory/agentmemory@latest` runtime and configures:
 
 ```text
-Memory LLM base URL:
-Memory LLM model:
-Memory LLM protocol: openai   # or anthropic
-Memory LLM API key:
+EMBEDDING_PROVIDER=local
+AGENTMEMORY_TOOLS=core
 ```
 
-This model is used by Tencent Memory for extraction and knowledge processing. It is separate from the ChatGPT Web model used through Codex.
+That gives you:
 
-The harness starts:
+- keyless BM25 recall
+- free on-device MiniLM semantic embeddings
+- the lean 8-tool MCP surface instead of all 54 tools
+- no automatic LLM compression
+- no broad automatic context injection
+- no OpenAI, Gemini, or Anthropic API key requirement
+
+The first semantic-memory request downloads `Xenova/all-MiniLM-L6-v2` once. After that, embedding inference runs locally.
+
+The local services are:
 
 ```text
-memory-core       http://127.0.0.1:8420
-Memory Hub        http://127.0.0.1:8125
-knowledge         http://127.0.0.1:8424
+REST / MCP    http://127.0.0.1:3111
+streams       :3112
+viewer        http://127.0.0.1:3113
+iii engine    :49134
 ```
 
-The Tencent model proxy on `:8096` is deliberately not started. The architecture is:
+The harness also runs the supported agentmemory adapters for detected agents:
 
 ```text
-ChatGPT Web
-    ↓
-codex-chatgpt-web
-    ↓
-Codex Full Harness
-    ├── repository / shell / tools
-    └── agent-memory
-            ↓
-     TencentDB Agent Memory
+Codex        → agentmemory connect codex --with-hooks
+Antigravity  → agentmemory connect antigravity
+Gemini CLI   → agentmemory connect gemini-cli
 ```
 
-## 6. Finish the one-time Ponytail setup
+For Codex it also attempts the upstream Codex plugin install before hook wiring.
 
-If Ponytail was installed for Codex:
+## 5. Trust Codex hooks once
 
-1. start Codex
-2. open `/hooks`
-3. review and trust Ponytail's lifecycle hooks
-4. start a fresh thread
-
-If Ponytail was installed for Antigravity/Gemini during an active session, restart that agent after setup.
-
-## 7. Finish the one-time ChatGPT Web setup
-
-Open the installed `codex-chatgpt-web` launcher and complete the launcher workflow:
-
-1. sign in to ChatGPT in the embedded browser
-2. run the browser smoke test
-3. install the ChatGPT Web models into Codex
-4. open the launcher's MCP page
-5. enable **Full Harness**
-6. follow the launcher instructions to create the ChatGPT Developer Mode connector (currently `Codex Native2`)
-7. restart Codex
-
-Full Harness is required if ChatGPT Web should access the current repository, local Codex tools, and `agent-memory`.
-
-## 8. Verify the result
-
-From the prepared project, run:
-
-```bash
-agent-harness doctor .
-agent-memory status
-agent-harness version
-```
-
-Expected result:
-
-- repository harness files report `OK`
-- `agent-memory status` reaches `127.0.0.1:8420` when memory was enabled
-- `agent-harness version` prints the installed harness version
-
-If `~/.local/bin` is not on your shell `PATH`, the bootstrap prints a note. Add it to your shell configuration before relying on `agent-harness` or `agent-memory` from new terminals.
-
-## 9. Bootstrap project-specific skills once
-
-Generic framework knowledge should not be copied into local skills. The useful local skills are the non-obvious rules specific to the repository.
-
-Start Codex from the project:
+Start the Codex TUI:
 
 ```bash
 codex
 ```
 
-Then use:
+Review the **Hooks need review** prompt. Trust only the Ponytail/agentmemory hooks you accept, then restart Codex.
+
+## 6. Finish ChatGPT-Web Full Harness setup once
+
+Open the installed `codex-chatgpt-web` launcher:
+
+1. sign in to ChatGPT in its embedded browser
+2. run the browser smoke test
+3. install the ChatGPT Web models into Codex
+4. enable **Full Harness** from its MCP page
+5. follow the launcher instructions to create the ChatGPT Developer Mode connector (currently `Codex Native2`)
+6. restart Codex
+
+Because agentmemory is registered as a Codex MCP server, ChatGPT Web can reach the memory tools through the same Full Harness tool surface.
+
+## 7. Verify
+
+Run:
+
+```bash
+agent-harness doctor .
+agent-harness memory status
+agent-harness memory doctor
+```
+
+Expected:
+
+```text
+repository harness files        OK
+Node 20+ + npx                   OK
+agentmemory :3111                OK
+Codex MCP config                 OK   (when Codex is installed)
+```
+
+You can inspect memory visually at:
+
+```text
+http://127.0.0.1:3113
+```
+
+## 8. Bootstrap repository-specific skills once
+
+Start Codex and ask:
 
 ```text
 Use repo-skill-bootstrap to analyze this repository.
@@ -179,53 +156,47 @@ Return the proposed repository-specific skill inventory with:
 Do not propose generic technology skills.
 ```
 
-Review the proposals, then tell the agent to generate only the approved skills under `.agents/skills/` using the host's built-in skill creator when available.
+Approve only useful repository-specific skills, then have the agent create them under `.agents/skills/`.
 
-This is usually a one-time project bootstrap. Run `skill-maintenance` after meaningful architecture changes rather than regenerating everything repeatedly.
+## 9. Daily coding
 
-## 10. Start normal coding
-
-After machine setup and project skill bootstrap, daily work is intentionally simple:
+After setup, normal use is just:
 
 ```bash
 cd ~/Projects/my-project
 codex
 ```
 
-Use a GitHub Issue as the compact task contract. A normal executor prompt is:
+A normal task prompt is:
 
 ```text
 Implement GitHub issue #142.
 
 Read AGENTS.md and relevant repository skills first.
 Use Ponytail full when available.
-Search shared memory only if historical context can materially help.
+Use agentmemory recall only if historical context can materially help.
 Use skill-discovery if specialist external expertise would improve the task.
 Treat the issue acceptance criteria as the contract.
 Run the specified verification and review the final diff before completion.
 ```
 
-The agent should then:
+For historical context, agents should prefer:
 
 ```text
-relevant memory only when useful
-        ↓
-current repository inspection
-        ↓
-relevant project skills
-        ↓
-external skill-discovery when useful
-        ↓
-implementation
-        ↓
-existing project CI/tests
-        ↓
-review
-        ↓
-record only durable lessons
+memory_smart_search
+memory_recall
 ```
 
-## What the harness adds to the project
+For durable verified outcomes:
+
+```text
+memory_save
+memory_lesson_save
+```
+
+Do not save secrets, raw logs, transient details, or speculative conclusions.
+
+## Project files installed
 
 ```text
 AGENTS.md
@@ -238,40 +209,19 @@ AGENTS.md
 ├── ISSUE_TEMPLATE/agent-task.md
 └── pull_request_template.md
 docs/agent-orchestrator.md
-scripts/agents/
-├── agent-memory
-└── create-worktree.sh
+scripts/agents/create-worktree.sh
 ```
 
-The harness is non-destructive: if one of its managed target paths already exists, it keeps the project's existing file instead of overwriting it.
+Known Tencent-memory files from v0.3.x are migrated/removed when they still contain the old harness-generated Tencent markers. Other existing project files remain untouched.
 
-## What each skill is for
-
-### `skill-discovery`
-
-Use when the current task may benefit from maintained external expertise. For example, a UI task may benefit from an external UI/UX skill. The skill should verify provenance and compatibility before recommending installation.
-
-### `repo-skill-bootstrap`
-
-Use to discover repository-specific architecture, invariants, and workflows that future agents should not have to rediscover.
-
-### `skill-maintenance`
-
-Use after major architecture changes to decide whether a version-controlled repository skill should be updated, added, or removed.
-
-### `shared-memory`
-
-Use for selective historical context such as prior architecture decisions, resolved failure patterns, or verified task outcomes. Memory is advisory; current repository evidence always wins.
-
-## Normal usage rule
-
-After initial setup, do not keep running individual installation scripts. The normal lifecycle is:
+## Lifecycle
 
 ```text
 new machine/project → run the bootstrap command
 project onboarding  → run repo-skill-bootstrap once
 normal day          → start Codex and work from a GitHub issue
 major architecture  → run skill-maintenance
+memory health       → agent-harness memory status
 ```
 
 For architecture rationale, see [architecture.md](architecture.md). It intentionally does not define another setup method.

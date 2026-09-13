@@ -5,6 +5,7 @@ HARNESS_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 TEMPLATES="$HARNESS_ROOT/templates"
 VERSION_FILE="$HARNESS_ROOT/VERSION"
 SETUP_DIR="$HARNESS_ROOT/scripts/setup"
+AGENTMEMORY_PACKAGE="@agentmemory/agentmemory@latest"
 
 COMMAND="${1:-help}"
 if [[ $# -gt 0 ]]; then shift; fi
@@ -14,7 +15,7 @@ YES=0
 CORE_ONLY=0
 SKIP_PONYTAIL=0
 SKIP_CHATGPT_WEB=0
-SKIP_MEMORY=0
+SKIP_AGENTMEMORY=0
 NONINTERACTIVE="${AGENT_HARNESS_NONINTERACTIVE:-0}"
 
 log() { printf '%s\n' "$*"; }
@@ -27,14 +28,14 @@ agent-harness init [path]
 agent-harness ready [path] [options]
 agent-harness doctor [path]
 agent-harness version
-agent-harness memory <status|search|remember|skills> [...]
+agent-harness memory <status|doctor|stop|upgrade> [...]
 
 ready options:
   --yes                 Accept optional installer prompts.
   --core-only           Install only repository harness files; no external add-ons.
   --skip-ponytail       Do not install Ponytail.
   --skip-chatgpt-web    Do not install codex-chatgpt-web.
-  --skip-memory         Do not provision TencentDB Agent Memory.
+  --skip-agentmemory    Do not install/configure agentmemory.
   --non-interactive     Never prompt; prepare what can be done safely and print pending steps.
 
 `ready` is the recommended one-command bootstrap for a development machine/project.
@@ -49,7 +50,7 @@ parse_target_and_flags() {
       --core-only) CORE_ONLY=1 ;;
       --skip-ponytail) SKIP_PONYTAIL=1 ;;
       --skip-chatgpt-web) SKIP_CHATGPT_WEB=1 ;;
-      --skip-memory) SKIP_MEMORY=1 ;;
+      --skip-agentmemory|--skip-memory) SKIP_AGENTMEMORY=1 ;;
       --non-interactive) NONINTERACTIVE=1 ;;
       -h|--help) usage; exit 0 ;;
       --*) echo "Unknown option: $1" >&2; exit 2 ;;
@@ -98,6 +99,17 @@ copy_if_missing() {
   echo "CREATE  $dst"
 }
 
+replace_legacy_if_present() {
+  local src="$1"
+  local dst="$2"
+  local marker="$3"
+
+  if [[ -f "$dst" ]] && grep -qF "$marker" "$dst"; then
+    cp "$src" "$dst"
+    echo "MIGRATE $dst"
+  fi
+}
+
 install_skill() {
   local skill="$1"
   copy_if_missing "$TEMPLATES/.agents/skills/$skill" "$TARGET/.agents/skills/$skill"
@@ -119,66 +131,90 @@ init_harness() {
   log ""
 
   copy_if_missing "$TEMPLATES/AGENTS.md" "$TARGET/AGENTS.md"
+  replace_legacy_if_present \
+    "$TEMPLATES/AGENTS.md" \
+    "$TARGET/AGENTS.md" \
+    'check shared memory when `agent-memory` is available'
+
   install_skill "repo-skill-bootstrap"
   install_skill "skill-discovery"
   install_skill "skill-maintenance"
   install_skill "shared-memory"
+  replace_legacy_if_present \
+    "$TEMPLATES/.agents/skills/shared-memory/SKILL.md" \
+    "$TARGET/.agents/skills/shared-memory/SKILL.md" \
+    "TencentDB Agent Memory"
+
   copy_if_missing "$TEMPLATES/.github/ISSUE_TEMPLATE/agent-task.md" "$TARGET/.github/ISSUE_TEMPLATE/agent-task.md"
   copy_if_missing "$TEMPLATES/.github/pull_request_template.md" "$TARGET/.github/pull_request_template.md"
   copy_if_missing "$TEMPLATES/scripts/agents/create-worktree.sh" "$TARGET/scripts/agents/create-worktree.sh"
-  copy_if_missing "$TEMPLATES/scripts/agents/agent-memory" "$TARGET/scripts/agents/agent-memory"
   copy_if_missing "$TEMPLATES/docs/chatgpt-orchestrator.md" "$TARGET/docs/agent-orchestrator.md"
+  replace_legacy_if_present \
+    "$TEMPLATES/docs/chatgpt-orchestrator.md" \
+    "$TARGET/docs/agent-orchestrator.md" \
+    "TencentDB Agent Memory"
 
-  chmod +x "$TARGET/scripts/agents/create-worktree.sh" "$TARGET/scripts/agents/agent-memory"
+  # v0.3.x installed a project-local Tencent-specific memory helper. It is no
+  # longer needed because agentmemory is exposed directly through MCP.
+  if [[ -f "$TARGET/scripts/agents/agent-memory" ]] && \
+     grep -qF "TencentDB Agent Memory" "$TARGET/scripts/agents/agent-memory"; then
+    rm -f "$TARGET/scripts/agents/agent-memory"
+    echo "REMOVE  $TARGET/scripts/agents/agent-memory (legacy Tencent helper)"
+  fi
+
+  chmod +x "$TARGET/scripts/agents/create-worktree.sh"
 
   log ""
   log "Harness files installed."
 }
 
-install_global_memory_cli() {
-  local dest="$HOME/.local/bin/agent-memory"
-  mkdir -p "$HOME/.local/bin"
-  ln -sf "$HARNESS_ROOT/bin/agent-memory" "$dest"
-  ok "agent-memory CLI -> $dest"
-}
-
 run_setup_script() {
   local script="$1"
   shift
-  if [[ ! -x "$SETUP_DIR/$script" ]]; then
+  if [[ ! -f "$SETUP_DIR/$script" ]]; then
     warn "Missing setup helper: $SETUP_DIR/$script"
     return 1
   fi
-  "$SETUP_DIR/$script" "$@"
+  bash "$SETUP_DIR/$script" "$@"
+}
+
+node_major() {
+  command -v node >/dev/null 2>&1 || return 1
+  node -p 'Number(process.versions.node.split(".")[0])' 2>/dev/null
 }
 
 ready_harness() {
   parse_target_and_flags "$@"
   init_harness
-  install_global_memory_cli
 
   log ""
   log "== Machine capability detection =="
   command -v git >/dev/null 2>&1 && ok "git" || warn "git not found"
   command -v curl >/dev/null 2>&1 && ok "curl" || warn "curl not found"
   command -v codex >/dev/null 2>&1 && ok "Codex detected" || warn "Codex not detected; install it separately before using Codex workflows."
-  if command -v agy >/dev/null 2>&1; then
+  if command -v agy >/dev/null 2>&1 || command -v antigravity >/dev/null 2>&1; then
     ok "Antigravity CLI detected"
   elif command -v gemini >/dev/null 2>&1; then
     ok "Gemini CLI detected"
   else
     warn "Antigravity/Gemini CLI not detected; this is optional."
   fi
-  if command -v docker >/dev/null 2>&1; then
-    ok "Docker detected"
+
+  if command -v node >/dev/null 2>&1 && command -v npx >/dev/null 2>&1; then
+    major="$(node_major || echo 0)"
+    if [[ "$major" -ge 20 ]]; then
+      ok "Node $(node -v) + npx (agentmemory ready)"
+    else
+      warn "Node $(node -v) detected; agentmemory requires Node 20+."
+    fi
   else
-    warn "Docker not detected; TencentDB Agent Memory setup will be skipped."
+    warn "Node.js 20+ with npm/npx is required for agentmemory."
   fi
 
   if [[ "$CORE_ONLY" -eq 1 ]]; then
     SKIP_PONYTAIL=1
     SKIP_CHATGPT_WEB=1
-    SKIP_MEMORY=1
+    SKIP_AGENTMEMORY=1
   fi
 
   log ""
@@ -202,13 +238,14 @@ ready_harness() {
   fi
 
   log ""
-  if [[ "$SKIP_MEMORY" -eq 0 ]]; then
-    if ! command -v docker >/dev/null 2>&1; then
-      warn "Skipping TencentDB Agent Memory because Docker is unavailable."
-    elif confirm "Provision TencentDB Agent Memory locally with Docker?" 1; then
-      AGENT_HARNESS_NONINTERACTIVE="$NONINTERACTIVE" run_setup_script install-memory.sh || warn "Memory setup needs attention."
+  if [[ "$SKIP_AGENTMEMORY" -eq 0 ]]; then
+    major="$(node_major || echo 0)"
+    if [[ "$major" -lt 20 ]] || ! command -v npx >/dev/null 2>&1; then
+      warn "Skipping agentmemory because Node.js 20+ with npx is unavailable."
+    elif confirm "Set up keyless local agentmemory (no API key)?" 1; then
+      AGENT_HARNESS_NONINTERACTIVE="$NONINTERACTIVE" run_setup_script install-agentmemory.sh || warn "agentmemory setup needs attention."
     else
-      warn "TencentDB Agent Memory setup skipped."
+      warn "agentmemory setup skipped."
     fi
   fi
 
@@ -219,32 +256,36 @@ ready_harness() {
 
 == One-time actions that cannot be safely automated ==
 
+Codex hooks (if Ponytail and/or agentmemory were installed):
+  1. Launch `codex` in a terminal once.
+  2. Review the "Hooks need review" prompt and trust only the hooks you accept.
+  3. Restart Codex after approval.
+
 ChatGPT Web Full Harness (only if you installed codex-chatgpt-web):
   1. Open the launcher and sign in to ChatGPT in its embedded browser.
-  2. Run its browser smoke test and Install models.
-  3. Open its MCP page, create the tunnel, and follow the Full Harness setup.
+  2. Run its browser smoke test and install the ChatGPT Web models.
+  3. Open its MCP page, create the tunnel, and follow Full Harness setup.
   4. In ChatGPT Developer Mode, create the requested connector (currently `Codex Native2`).
   5. Restart Codex after model/connector setup.
 
-TencentDB Agent Memory (only if enabled):
-  - Panel: http://127.0.0.1:8125
-  - Core health: http://127.0.0.1:8420/health
-  - The harness treats Tencent as a MEMORY SIDECAR, not Codex's model provider.
-  - Sidecar setup starts memory-core + memory-hub only; Tencent's :8096 model proxy is intentionally not started.
-  - Do NOT replace codex-chatgpt-web's Codex base URL with Tencent's proxy in this architecture.
-  - For team/agent ACL features, create your Team/User/Agent in the Memory Hub panel once.
+agentmemory:
+  - No LLM API key is required by the harness default.
+  - REST/MCP: http://127.0.0.1:3111
+  - Viewer:   http://127.0.0.1:3113
+  - Local semantic embeddings are enabled; the first semantic request downloads MiniLM once.
+  - Codex/Gemini/Antigravity are wired through agentmemory's supported MCP adapters when detected.
 
 Useful checks:
-  agent-memory status
-  agent-memory search "architecture decision"
   agent-harness doctor .
+  agent-harness memory status
+  agent-harness memory doctor
 
 Coding flow:
-  1. ChatGPT Web orchestrates through the Codex Full Harness.
-  2. Use `agent-memory search` for relevant prior context on substantial tasks.
+  1. ChatGPT Web orchestrates through the Codex Full Harness when enabled.
+  2. Agents use agentmemory MCP recall only when historical context materially helps.
   3. Use `skill-discovery` for maintained external expertise.
   4. Use `repo-skill-bootstrap` for repository-specific invariants.
-  5. Execute via Codex/Antigravity, verify with CI, and record durable outcomes only.
+  5. Execute via Codex/Antigravity, verify with CI, and save only durable memory.
 NEXT
 }
 
@@ -271,17 +312,14 @@ doctor_harness() {
   check ".github/ISSUE_TEMPLATE/agent-task.md"
   check ".github/pull_request_template.md"
   check "scripts/agents/create-worktree.sh"
-  check "scripts/agents/agent-memory"
   check "docs/agent-orchestrator.md"
 
-  for executable in scripts/agents/create-worktree.sh scripts/agents/agent-memory; do
-    if [[ -x "$TARGET/$executable" ]]; then
-      echo "OK      $executable executable"
-    else
-      echo "INVALID $executable is not executable"
-      failed=1
-    fi
-  done
+  if [[ -x "$TARGET/scripts/agents/create-worktree.sh" ]]; then
+    echo "OK      scripts/agents/create-worktree.sh executable"
+  else
+    echo "INVALID scripts/agents/create-worktree.sh is not executable"
+    failed=1
+  fi
 
   log ""
   log "External readiness (informational):"
@@ -289,14 +327,26 @@ doctor_harness() {
   if command -v codex-chatgpt-web >/dev/null 2>&1; then
     ok "codex-chatgpt-web"
   else
-    warn "codex-chatgpt-web CLI not detected (optional)"
+    warn "codex-chatgpt-web CLI not detected (optional; launcher may still be installed)"
   fi
-  command -v docker >/dev/null 2>&1 && ok "docker" || warn "docker not found (memory optional)"
 
-  if command -v curl >/dev/null 2>&1 && curl -fsS --max-time 2 http://127.0.0.1:8420/health >/dev/null 2>&1; then
-    ok "TencentDB Agent Memory core reachable on :8420"
+  major="$(node_major || echo 0)"
+  if [[ "$major" -ge 20 ]] && command -v npx >/dev/null 2>&1; then
+    ok "Node $(node -v) + npx"
   else
-    warn "TencentDB Agent Memory core not reachable (optional)"
+    warn "Node.js 20+ with npx not ready for agentmemory"
+  fi
+
+  if command -v curl >/dev/null 2>&1 && curl -fsS --max-time 2 http://127.0.0.1:3111/agentmemory/livez >/dev/null 2>&1; then
+    ok "agentmemory reachable on :3111"
+  else
+    warn "agentmemory not reachable on :3111 (optional)"
+  fi
+
+  if [[ -f "$HOME/.codex/config.toml" ]] && grep -q '^\[mcp_servers\.agentmemory\]' "$HOME/.codex/config.toml"; then
+    ok "agentmemory MCP configured for Codex"
+  elif command -v codex >/dev/null 2>&1; then
+    warn "agentmemory MCP not found in ~/.codex/config.toml"
   fi
 
   return "$failed"
@@ -323,7 +373,8 @@ case "$COMMAND" in
     fi
     ;;
   memory)
-    exec "$HARNESS_ROOT/bin/agent-memory" "$@"
+    command -v npx >/dev/null 2>&1 || { echo "npx is required" >&2; exit 127; }
+    exec npx -y "$AGENTMEMORY_PACKAGE" "$@"
     ;;
   help|--help|-h)
     usage
