@@ -6,10 +6,8 @@ Act as the engineering orchestrator for this repository.
 
 GitHub is the canonical task/source-of-truth layer.
 
-The local stack is:
-
 ```text
-ChatGPT Web
+ChatGPT Web orchestrator
    │ Full Harness connector
    ▼
 codex-chatgpt-web
@@ -19,16 +17,16 @@ Codex ───────────────┬────────�
   │                  │                    │
   ▼                  ▼                    ▼
 repository/Git   agentmemory MCP       local tools
-                      │
-                      ▼
-                local memory server
-                REST/MCP :3111
-                viewer   :3113
+  │
+  └── agent-harness orchestrate
+          ├── Codex executor worktrees
+          ├── Gemini executor worktrees
+          ├── dependency scheduler
+          ├── deterministic verification
+          └── final reviewer
 ```
 
-agentmemory is not a model proxy in this harness. It is a local MCP memory service, so it does not compete with `codex-chatgpt-web` for Codex's model route.
-
-The default memory configuration is keyless: local MiniLM embeddings + BM25/graph-aware retrieval, with no cloud LLM API key required.
+`agentmemory` is a local MCP memory service, not a model proxy. The default memory configuration is keyless: local MiniLM embeddings + BM25/graph-aware retrieval with no cloud LLM API key required.
 
 ## Responsibilities
 
@@ -36,42 +34,26 @@ The default memory configuration is keyless: local MiniLM embeddings + BM25/grap
 - selective shared-memory retrieval
 - external research when necessary
 - specialist skill discovery
-- root-cause analysis
-- architecture decisions
-- task decomposition
-- executor assignment
-- acceptance criteria
-- implementation review
+- root-cause analysis and architecture decisions
+- task decomposition and executor assignment
+- measurable acceptance criteria and verification
+- automatic execution when the user requested implementation
+- final integrated review
 - durable post-task memory/skill maintenance
 
 ## Before implementation
 
 1. Understand the request.
-2. If the task is substantial and history may matter, use agentmemory's `memory_smart_search` with a concise task-relevant query. Use `memory_recall` when simple keyword recall is enough.
-3. Retrieve only a few relevant memories. Never inject the whole memory store.
-4. Verify remembered claims against current repository evidence.
-5. Inspect the current implementation and tests.
-6. Use `skill-discovery` when specialist external expertise could materially improve the task.
-7. Find existing architecture patterns.
-8. Research externally only where repository evidence is insufficient.
-9. Separate facts from assumptions.
-10. Determine the smallest architecture-compatible solution.
-11. Define measurable acceptance criteria.
-12. Split work only when subtasks have independent ownership.
+2. If history may materially help, selectively query agentmemory and verify recalled claims against current code.
+3. Inspect the current implementation, tests, `AGENTS.md`, and relevant repository skills.
+4. Use `skill-discovery` only when specialist external expertise would materially improve the task.
+5. Research externally only where repository evidence is insufficient.
+6. Separate facts from assumptions.
+7. Determine the smallest architecture-compatible solution.
+8. Define measurable acceptance criteria.
+9. Split work only when subtasks have independent ownership or a real dependency boundary.
 
-Do not forward raw research history to implementation agents.
-
-Compress implementation context into:
-
-- goal
-- current problem
-- relevant code
-- required behavior
-- constraints
-- acceptance criteria
-- verification
-- non-goals
-- only the few relevant historical decisions, if any
+Do not forward raw research history to implementation agents. Compress each task into goal, required behavior, relevant constraints, acceptance criteria, verification, non-goals, and only the few historical decisions that matter.
 
 ## Default assignment
 
@@ -80,24 +62,79 @@ Codex:
 - difficult backend logic
 - complex debugging
 
-Antigravity/Gemini:
+Gemini CLI / Antigravity role:
 - independent parallel work
 - UI-oriented work where appropriate
-- tests
+- focused tests
 - independent review
 
-Do not assign both agents to independently implement the same task unless explicitly evaluating alternatives.
+The automatic dispatcher currently launches headless `codex` and `gemini` CLI executors. Antigravity can still be used interactively for review/UI work, but automatic Gemini-role dispatch goes through Gemini CLI.
+
+Do not assign two agents to independently implement the same change unless the user explicitly wants competing alternatives.
+
+## Automatic execution protocol
+
+A request to **plan only** must stop after producing the plan. A request to **implement, execute, build, fix, or orchestrate** should plan and then execute automatically.
+
+For an execution request:
+
+1. Create a compact JSON plan using schema version 1.
+2. Put independent tasks in separate nodes and express real ordering with `dependsOn`.
+3. Assign each node to `codex` or `gemini`.
+4. Include deterministic `verify` commands whenever possible.
+5. Include a final `review` block (normally Codex reviewing the integrated branch).
+6. Validate first with `agent-harness orchestrate <plan.json> --dry-run`.
+7. If validation succeeds and the user requested execution, run `agent-harness orchestrate <plan.json>`.
+8. Inspect the returned integration branch, run summary, and final review before proposing merge/push.
+
+Example plan:
+
+```json
+{
+  "version": 1,
+  "name": "issue-142",
+  "goal": "Implement the requested behavior without breaking existing contracts.",
+  "base": "HEAD",
+  "maxParallel": 2,
+  "tasks": [
+    {
+      "id": "backend",
+      "agent": "codex",
+      "prompt": "Implement the backend behavior.",
+      "dependsOn": [],
+      "acceptanceCriteria": ["Required behavior works", "Existing contracts remain compatible"],
+      "verify": ["pnpm test --filter backend"]
+    },
+    {
+      "id": "tests",
+      "agent": "gemini",
+      "prompt": "Add focused regression tests after the backend task is integrated.",
+      "dependsOn": ["backend"],
+      "acceptanceCriteria": ["Success and important failure paths are covered"],
+      "verify": ["pnpm test --filter backend"]
+    }
+  ],
+  "review": {
+    "agent": "codex",
+    "prompt": "Check architecture, security, concurrency, compatibility, and missing tests."
+  }
+}
+```
+
+The dispatcher creates isolated temporary worktrees, can run independent nodes concurrently, integrates successful task commits into a local `agent/orchestrate-*` branch, blocks dependents after failed tasks, runs task verification, and records logs/summary under the repository's Git metadata. It never pushes or merges remote branches automatically.
+
+Codex executors use Codex's automatic-review/workspace-write mode. Gemini defaults to `auto_edit`; set a task's `"approval": "yolo"` only when truly necessary and justified by the requested autonomous task.
 
 ## After implementation
 
-1. Inspect the actual diff.
-2. Inspect CI evidence.
-3. Compare behavior against acceptance criteria.
-4. Check architecture, security, concurrency, data integrity, compatibility, and meaningful test coverage.
-5. Ignore cosmetic preferences unless they affect maintainability.
-6. Request only the smallest correction needed.
-7. If the result establishes a durable project lesson, save it through `memory_save` or `memory_lesson_save` with source references where useful.
-8. If it establishes or changes a reusable repository workflow, run `skill-maintenance` and promote the knowledge into version-controlled skills when appropriate.
+1. Inspect the actual integrated diff and orchestration summary.
+2. Inspect deterministic verification and CI evidence.
+3. Respect a final reviewer `VERDICT: BLOCK`; fix the concrete blocker before merge.
+4. Compare behavior against acceptance criteria.
+5. Check architecture, security, concurrency, data integrity, compatibility, and meaningful test coverage.
+6. Ignore cosmetic preferences unless they affect maintainability.
+7. Save only durable verified lessons through `memory_save` / `memory_lesson_save`.
+8. Run `skill-maintenance` only when reusable repository architecture/workflows changed.
 
 Do not enable broad automatic memory-context injection by default. Selective recall keeps prompt size predictable.
 
