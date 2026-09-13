@@ -1,0 +1,141 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+CONFIG_FILE="${AGENT_MEMORY_CONFIG:-$HOME/.config/agent-harness/memory.env}"
+if [[ -f "$CONFIG_FILE" ]]; then
+  # shellcheck disable=SC1090
+  source "$CONFIG_FILE"
+fi
+
+MEMORY_URL="${AGENT_MEMORY_URL:-http://127.0.0.1:8420}"
+SERVICE_ID="${AGENT_MEMORY_SERVICE_ID:-default}"
+GATEWAY_KEY="${AGENT_MEMORY_GATEWAY_API_KEY:-}"
+
+usage() {
+  cat <<'USAGE'
+agent-memory status
+agent-memory search <query> [limit]
+agent-memory remember <text>
+agent-memory skills <query> [top_k]
+
+The CLI talks only to TencentDB Agent Memory's HTTP API. It never opens the
+underlying SQLite/Mongo database directly.
+
+Environment/config:
+  AGENT_MEMORY_URL                 default http://127.0.0.1:8420
+  AGENT_MEMORY_SERVICE_ID          default default
+  AGENT_MEMORY_GATEWAY_API_KEY     optional Bearer key
+  AGENT_MEMORY_CONFIG              default ~/.config/agent-harness/memory.env
+USAGE
+}
+
+need() {
+  command -v "$1" >/dev/null 2>&1 || {
+    echo "Required command not found: $1" >&2
+    exit 127
+  }
+}
+
+project_id() {
+  local remote=""
+  if git rev-parse --show-toplevel >/dev/null 2>&1; then
+    remote="$(git config --get remote.origin.url 2>/dev/null || true)"
+    if [[ -n "$remote" ]]; then
+      printf '%s' "$remote" | sed -E 's#^[^@]+@[^:]+:##; s#^https?://[^/]+/##; s#\.git$##'
+      return
+    fi
+    basename "$(git rev-parse --show-toplevel)"
+    return
+  fi
+  basename "$PWD"
+}
+
+json_payload() {
+  need python3
+  python3 - "$@" <<'PY'
+import json, sys
+mode = sys.argv[1]
+args = sys.argv[2:]
+project = args[0]
+if mode == "search":
+    query, limit = args[1], int(args[2])
+    print(json.dumps({"query": f"project:{project} {query}", "limit": limit}))
+elif mode == "remember":
+    text, session = args[1], args[2]
+    content = f"[project:{project}] {text}"
+    print(json.dumps({"session_id": session, "messages": [{"role": "user", "content": content}]}))
+elif mode == "skills":
+    query, top_k = args[1], int(args[2])
+    print(json.dumps({"query": f"project:{project} {query}", "top_k": top_k, "mode": "hybrid"}))
+else:
+    raise SystemExit(f"unknown payload mode: {mode}")
+PY
+}
+
+post() {
+  local path="$1"
+  local body="$2"
+  local args=(
+    -fsS
+    -X POST
+    "$MEMORY_URL$path"
+    -H "Content-Type: application/json"
+    -H "x-tdai-service-id: $SERVICE_ID"
+    --data "$body"
+  )
+  if [[ -n "$GATEWAY_KEY" ]]; then
+    args+=( -H "Authorization: Bearer $GATEWAY_KEY" )
+  fi
+  curl "${args[@]}"
+}
+
+pretty() {
+  if command -v jq >/dev/null 2>&1; then jq .; else cat; fi
+}
+
+cmd="${1:-help}"
+case "$cmd" in
+  status)
+    need curl
+    curl -fsS "$MEMORY_URL/health" | pretty
+    ;;
+  search)
+    need curl
+    query="${2:-}"
+    limit="${3:-5}"
+    [[ -n "$query" ]] || { echo "search requires a query" >&2; exit 2; }
+    project="$(project_id)"
+    body="$(json_payload search "$project" "$query" "$limit")"
+    echo "# distilled L1 memory"
+    post "/v3/atomic/search" "$body" | pretty
+    echo
+    echo "# raw conversation fallback"
+    post "/v3/conversation/search" "$body" | pretty
+    ;;
+  remember)
+    need curl
+    text="${*:2}"
+    [[ -n "$text" ]] || { echo "remember requires text" >&2; exit 2; }
+    project="$(project_id)"
+    session="agent-harness-${project//[^a-zA-Z0-9_.-]/-}"
+    body="$(json_payload remember "$project" "$text" "$session")"
+    post "/v3/conversation/add" "$body" | pretty
+    ;;
+  skills)
+    need curl
+    query="${2:-}"
+    top_k="${3:-5}"
+    [[ -n "$query" ]] || { echo "skills requires a query" >&2; exit 2; }
+    project="$(project_id)"
+    body="$(json_payload skills "$project" "$query" "$top_k")"
+    post "/v3/skill/search" "$body" | pretty
+    ;;
+  help|-h|--help)
+    usage
+    ;;
+  *)
+    echo "Unknown command: $cmd" >&2
+    usage >&2
+    exit 2
+    ;;
+esac

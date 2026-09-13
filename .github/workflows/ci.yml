@@ -17,8 +17,13 @@ jobs:
       - name: Validate shell syntax
         run: |
           bash -n bin/agent-harness
+          bash -n bin/agent-memory
           bash -n scripts/test-harness.sh
+          bash -n scripts/setup/install-ponytail.sh
+          bash -n scripts/setup/install-chatgpt-web.sh
+          bash -n scripts/setup/install-memory.sh
           bash -n templates/scripts/agents/create-worktree.sh
+          bash -n templates/scripts/agents/agent-memory
 
       - name: Run smoke test
         run: ./scripts/test-harness.sh
