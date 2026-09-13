@@ -2,7 +2,44 @@
 
 Reusable, framework-agnostic engineering harness for orchestrating ChatGPT Web, Codex, Antigravity/Gemini, repository Agent Skills, GitHub Issues/PRs, Ponytail, optional TencentDB Agent Memory, and deterministic CI.
 
-The goal is simple: **one command per project to prepare the engineering harness, then let agents reuse repository knowledge instead of repeatedly re-learning it.**
+The goal is simple: **enter any Git project, run one command, and prepare as much of the coding harness as can be safely automated.**
+
+## One-command quick start
+
+From the Git repository you want to work on:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/HieuCuteDangYeu/agent-harness/main/bootstrap.sh | bash
+```
+
+That one command:
+
+1. installs or updates `agent-harness` under `~/.local/share/agent-harness`
+2. links `agent-harness` and `agent-memory` into `~/.local/bin`
+3. runs `agent-harness ready .` for the current project
+4. installs the non-destructive project harness
+5. detects Codex / Antigravity / Gemini / Docker
+6. offers Ponytail installation
+7. offers `codex-chatgpt-web` installation
+8. offers TencentDB Agent Memory local Docker setup
+9. runs a readiness report
+10. prints the few account/credential actions that cannot be safely automated
+
+If you do not want to pipe a remote script into a shell, use the manual installation below and inspect `bootstrap.sh` first.
+
+To pass bootstrap options through the one-liner:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/HieuCuteDangYeu/agent-harness/main/bootstrap.sh \
+  | bash -s -- --skip-memory
+```
+
+For only the repository-side harness with no external installers:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/HieuCuteDangYeu/agent-harness/main/bootstrap.sh \
+  | bash -s -- --core-only --non-interactive
+```
 
 ## Architecture
 
@@ -40,7 +77,9 @@ The goal is simple: **one command per project to prepare the engineering harness
 
 See [docs/architecture.md](docs/architecture.md) for the full model.
 
-## Install once
+## Manual install
+
+Clone once:
 
 ```bash
 mkdir -p ~/.local/share ~/.local/bin
@@ -54,49 +93,24 @@ ln -sf \
   ~/.local/bin/agent-harness
 ```
 
-Ensure `~/.local/bin` is on `PATH`.
-
-## Prepare any project in one command
-
-Inside an existing Git repository:
+Ensure `~/.local/bin` is on `PATH`, then inside any project:
 
 ```bash
 agent-harness ready .
 ```
 
-This is the recommended entry point.
-
-It:
-
-- installs the non-destructive project harness
-- installs `AGENTS.md` + meta-skills
-- installs the safe `agent-memory` CLI
-- detects Codex / Antigravity / Gemini / Docker
-- optionally installs Ponytail
-- optionally installs `codex-chatgpt-web`
-- optionally provisions TencentDB Agent Memory with Docker
-- runs a readiness report
-- prints the few one-time account/credential steps that cannot be safely automated
-
-Read [docs/one-command-setup.md](docs/one-command-setup.md) for details.
-
-### Core-only mode
-
-For CI or when you only want repository files:
-
-```bash
-agent-harness ready . --core-only --non-interactive
-```
-
-Other flags:
+Useful flags:
 
 ```text
 --yes
+--core-only
 --skip-ponytail
 --skip-chatgpt-web
 --skip-memory
 --non-interactive
 ```
+
+`--yes` explicitly accepts optional installers. Without it, potentially sensitive third-party/account integrations still prompt.
 
 ## Important integration choice
 
@@ -138,47 +152,25 @@ project/
 
 The installer is intentionally non-destructive: existing managed files are kept rather than overwritten.
 
-## Four knowledge/capability layers
+## Knowledge and capability layers
 
 ### `skill-discovery`
 
-Find maintained external specialist skills for the **active task**, not merely the whole tech stack.
+Find maintained external specialist skills for the **active task**, not merely the whole tech stack. Useful categories include UI/UX, accessibility, security review, migrations, testing, and framework-specific workflows.
 
-Examples of useful categories:
-
-- UI/UX and design systems
-- accessibility
-- security review
-- migrations
-- testing
-- framework-specific workflows
-
-It must verify provenance/compatibility before recommending installation and must not install third-party code without approval.
+It must verify provenance, compatibility, installation scope, maintenance, context cost, and supply-chain/security considerations before recommending a third-party skill. It does not silently install external code.
 
 ### `repo-skill-bootstrap`
 
-Discover project-specific knowledge that generic skills cannot know:
-
-- service boundaries
-- event-delivery guarantees
-- auth invariants
-- persistence ownership
-- deployment conventions
-- project-specific workflow constraints
+Discover project-specific knowledge generic skills cannot know, such as service boundaries, event-delivery guarantees, auth invariants, persistence ownership, deployment conventions, and project-specific workflow constraints.
 
 ### `skill-maintenance`
 
-After major PRs, decide whether durable repository knowledge changed and whether an existing version-controlled skill should be updated.
+After meaningful architecture changes, decide whether durable repository knowledge changed and whether an existing version-controlled skill should be updated.
 
 ### `shared-memory`
 
-Use TencentDB Agent Memory selectively for historical context such as:
-
-- prior architecture decisions
-- important failure/root-cause patterns
-- task outcomes
-- extracted skills
-- Wiki / CodeGraph knowledge
+Use TencentDB Agent Memory selectively for historical context such as prior architecture decisions, important failure/root-cause patterns, task outcomes, extracted skills, Wiki, and CodeGraph knowledge.
 
 Memory is advisory. Current Git/GitHub evidence wins when they conflict.
 
@@ -257,11 +249,11 @@ Review the final diff before completion.
 
 ### Ponytail
 
-The harness uses the upstream host-specific installers when detected. Codex users should review/trust Ponytail's lifecycle hooks once via `/hooks` after installation.
+The harness uses upstream host-specific installers when detected. Codex users should review/trust Ponytail's lifecycle hooks once via `/hooks` after installation.
 
 ### codex-chatgpt-web
 
-This is an unofficial project that automates ChatGPT Web. The harness only downloads/runs its upstream installer after your explicit confirmation. Full Harness still requires an embedded-browser login and a ChatGPT Developer Mode connector setup. Review the upstream security model and applicable OpenAI/workspace policies before enabling it.
+This is an unofficial project that automates ChatGPT Web. The harness only downloads/runs its upstream installer after explicit confirmation. Full Harness still requires an embedded-browser login and a ChatGPT Developer Mode connector setup. Review the upstream security model and applicable OpenAI/workspace policies before enabling it.
 
 ### TencentDB Agent Memory
 
