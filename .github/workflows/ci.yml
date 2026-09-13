@@ -16,6 +16,7 @@ jobs:
 
       - name: Validate shell syntax
         run: |
+          bash -n bootstrap.sh
           bash -n bin/agent-harness
           bash -n bin/agent-memory
           bash -n scripts/test-harness.sh
