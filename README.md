@@ -24,18 +24,19 @@ agent-harness version
 ## Daily use
 
 ```bash
-agent-harness memory start       # safe if already running
+agent-harness memory start
 agent-harness chatgpt-web open   # only for ChatGPT Web models
 codex
 ```
 
-For substantial work, ask the ChatGPT Web orchestrator to implement/orchestrate the task. It can dispatch Codex/Gemini automatically.
+Then describe the task normally, for example:
 
-```bash
-agent-harness orchestrate example
-agent-harness orchestrate /tmp/plan.json --dry-run
-agent-harness orchestrate /tmp/plan.json
+```text
+Improve the reel recommendation system using the repository orchestrator.
+Implement it, verify it, and do not push or merge remotely.
 ```
+
+You do not need to create a GitHub issue or plan JSON first. Existing issues/PRs can be used when you already have them; the orchestrator generates the internal task graph and dispatcher plan automatically.
 
 The dispatcher works on local Git branches/worktrees and never pushes or merges remotely by itself.
 
