@@ -42,7 +42,7 @@ git status
 
 A clean working tree is recommended. The automatic dispatcher later requires committed Git state by default.
 
-## 3. Run the single setup command
+## 3. Run the setup command
 
 ```bash
 bash <(curl -fsSL https://raw.githubusercontent.com/HieuCuteDangYeu/agent-harness/main/bootstrap.sh)
@@ -56,21 +56,48 @@ Set up/open the Codex Web GPT launcher?                    Y
 Set up keyless local agentmemory (no API key)?             Y
 ```
 
-Do not run the internal setup scripts manually. The bootstrap installs/updates the harness, prepares the repository files, configures integrations, starts memory in the background, and runs readiness checks.
+The bootstrap installs/updates the harness, prepares repository files, installs supported runtime plugins/extensions, starts memory in the background, configures MCP/adapters, and runs readiness checks.
 
-## 4. Finish Codex hook setup
+Do not run the internal setup scripts manually during normal installation.
 
-Run:
+## 4. Finish the one-time plugin/hook step
+
+The bootstrap installs two runtime integrations when supported:
+
+```text
+Ponytail
+  → Codex plugin
+  → Gemini extension
+  → Antigravity plugin
+
+agentmemory
+  → Codex plugin + MCP/hooks
+  → Gemini/Antigravity adapters
+```
+
+### Codex
+
+Launch:
 
 ```bash
 codex
 ```
 
-If Codex shows **Hooks need review**, inspect and trust only the Ponytail/agentmemory hooks you accept. Then fully restart Codex.
+Open `/hooks` if Codex reports hooks needing review. Inspect and trust only the Ponytail/agentmemory hooks you accept, then start a new thread or restart Codex.
+
+You do this once after installation or after a plugin/hook update that requires new trust.
+
+### Gemini / Antigravity
+
+If Ponytail or agentmemory was installed while the host was already open, restart Gemini/Antigravity so the active session reloads the extension/plugin/MCP configuration.
+
+After this step, you do **not** manually run Ponytail before each coding task. The coding host loads it when that agent starts. agentmemory is also available to the connected host, but agents should query it selectively rather than injecting all memory automatically.
+
+See [Runtime plugins and extensions](plugins.md) for exactly how they affect interactive and orchestrated tasks.
 
 ## 5. Finish Codex Web GPT setup
 
-Use Codex Web GPT only if you want ChatGPT Web models inside Codex.
+Use Codex Web GPT only if you want a ChatGPT Web model to act through the local Codex tool surface.
 
 Open it with:
 
@@ -87,28 +114,11 @@ In the launcher:
 5. configure the ChatGPT Developer Mode connector requested by the launcher
 6. restart Codex
 
-Keep the launcher running while a ChatGPT Web model is being used in Codex.
+Keep the launcher running while a ChatGPT Web model is being used inside Codex.
 
-## 6. Connect optional ChatGPT plugins
+Codex Web GPT is a model/tool bridge, not the Ponytail or agentmemory plugin.
 
-Plugins are **not installed by agent-harness**. They are optional data/action sources for the ChatGPT orchestrator when they are connected in ChatGPT.
-
-Useful examples:
-
-| Plugin | Use it for |
-|---|---|
-| GitHub | repositories, issues, PRs, CI, reviews, history |
-| Google Drive | product requirements, design docs, reports, shared project documents |
-| Figma | design inspection, UI implementation context, design handoff |
-| Neon | PostgreSQL projects, branches, schema/runtime database inspection |
-| OpenAI Platform | OpenAI API key/setup tasks when the project actually uses the API |
-| Files | prior uploads and project files stored in ChatGPT |
-
-The orchestrator should use only the plugins relevant to the current task. Connected plugins do **not** automatically become tools inside spawned Codex/Gemini executor processes. The orchestrator should extract only the few facts/references executors need and place those in the task packet.
-
-See [Plugins and connectors](plugins.md) for the rules and examples.
-
-## 7. Verify the installation
+## 6. Verify the installation
 
 Run:
 
@@ -140,7 +150,7 @@ On Linux the default persistent memory path is:
 
 The repository should not contain agentmemory state such as `data/state_store.db` from new harness-managed runs.
 
-## 8. Bootstrap repository-specific skills once
+## 7. Bootstrap repository-specific skills once
 
 For an existing repository, start Codex and ask:
 
@@ -158,11 +168,23 @@ Return the proposed repository-specific skill inventory with:
 Do not propose generic technology skills.
 ```
 
-Review the proposed inventory first. Then approve only the useful repository-specific skills and ask the agent to create them under `.agents/skills/`.
+Review the proposed inventory first. Then approve only useful repository-specific skills and ask the agent to create them under `.agents/skills/`.
 
 For a brand-new empty repository, establish the initial architecture/code first; bootstrap repository skills after real conventions exist.
 
-## 9. Test the dispatcher safely
+Repository skills are different from runtime plugins:
+
+```text
+Ponytail / agentmemory
+→ installed into the coding host
+→ reusable across repositories
+
+.agents/skills/*
+→ stored in this repository
+→ project-specific knowledge/workflows
+```
+
+## 8. Test the dispatcher safely
 
 Print the example plan:
 
@@ -178,6 +200,28 @@ agent-harness orchestrate /tmp/agent-plan.json --dry-run
 ```
 
 A successful dry run confirms the task-graph parser and dependency validation are ready. Real executor runs are explained in [How to use](usage.md).
+
+## 9. What happens when you later orchestrate work
+
+Once setup is complete:
+
+```text
+ChatGPT Web orchestrator (optional)
+          │
+          ▼
+agent-harness orchestrate
+     ┌────────────┐
+     ▼            ▼
+   Codex        Gemini
+     │            │
+     ├─ Ponytail  ├─ Ponytail
+     └─ memory    └─ memory
+          │
+          ▼
+  repository worktrees
+```
+
+The spawned Codex/Gemini processes use their normal host configuration, so installed Ponytail/agentmemory integrations apply there too. You do not add plugin-install tasks to the orchestration plan.
 
 ## Troubleshooting
 
@@ -200,5 +244,13 @@ Memory diagnostics/logs:
 agent-harness memory doctor
 agent-harness memory logs
 ```
+
+Ponytail or agentmemory appears missing after setup:
+
+```bash
+bash <(curl -fsSL https://raw.githubusercontent.com/HieuCuteDangYeu/agent-harness/main/bootstrap.sh)
+```
+
+Then restart the affected coding host and review hooks again if prompted.
 
 Gemini is not installed: use Codex-only orchestration plans, or install/configure Gemini before assigning a task to `gemini`.
