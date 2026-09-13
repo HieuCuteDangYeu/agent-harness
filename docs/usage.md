@@ -113,8 +113,6 @@ Agents should recall history only when useful. Typical tools are `memory_smart_s
 
 Broad automatic context injection stays off by default, so a fresh executor does not receive the entire memory store. It can query the same shared memory service when the task warrants it.
 
-See [Runtime plugins and extensions](plugins.md) for installation/trust details and the exact host mappings.
-
 ## 4. What happens during automatic execution
 
 ```text
