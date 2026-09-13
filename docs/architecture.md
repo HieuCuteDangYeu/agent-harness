@@ -60,7 +60,7 @@ This project chooses:
 - `codex-chatgpt-web`: model bridge + turn-bound local tool bridge for ChatGPT Web
 - TencentDB Agent Memory: shared memory/knowledge sidecar
 
-The Tencent `:8096` proxy may be running because its upstream launcher starts all services, but the harness does not configure Codex to use it when the ChatGPT-Web bridge is active.
+The harness starts only Tencent `memory-core` + `memory-hub`; it intentionally does not start Tencent's `:8096` model proxy. This removes the competing-provider route entirely.
 
 ## Knowledge layers
 

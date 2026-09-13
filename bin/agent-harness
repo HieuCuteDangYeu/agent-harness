@@ -233,7 +233,8 @@ TencentDB Agent Memory (only if enabled):
   - Panel: http://127.0.0.1:8125
   - Core health: http://127.0.0.1:8420/health
   - The harness treats Tencent as a MEMORY SIDECAR, not Codex's model provider.
-  - Do NOT replace codex-chatgpt-web's Codex base URL with Tencent's :8096 proxy in this architecture.
+  - Sidecar setup starts memory-core + memory-hub only; Tencent's :8096 model proxy is intentionally not started.
+  - Do NOT replace codex-chatgpt-web's Codex base URL with Tencent's proxy in this architecture.
   - For team/agent ACL features, create your Team/User/Agent in the Memory Hub panel once.
 
 Useful checks:

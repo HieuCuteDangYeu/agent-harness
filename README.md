@@ -109,7 +109,7 @@ codex-chatgpt-web -> ChatGPT Web model/tool bridge
 TencentDB Agent Memory -> local memory/knowledge sidecar
 ```
 
-Tencent's `:8096` proxy may be running because its official deployment starts the full stack, but **do not point Codex at that proxy when `codex-chatgpt-web` owns the Codex model route**.
+The harness sidecar installer starts only Tencent `memory-core` + `memory-hub`; it intentionally does **not** start Tencent's `:8096` model proxy. Do not point Codex at that proxy when `codex-chatgpt-web` owns the Codex model route.
 
 ChatGPT Web reaches memory through the Codex Full Harness tool surface and the narrow `agent-memory` helper rather than raw DB access.
 
@@ -265,7 +265,7 @@ This is an unofficial project that automates ChatGPT Web. The harness only downl
 
 ### TencentDB Agent Memory
 
-The harness clones the official TencentCloud repository and delegates first boot to Tencent's own Docker scripts. The default backing store is SQLite in a Docker volume. The first boot asks for an LLM endpoint used by memory/knowledge extraction.
+The harness clones the official TencentCloud repository and uses its Docker scripts to start only `memory-core` + `memory-hub`. The default backing store is SQLite in a Docker volume. First boot asks only for the LLM endpoint used by memory/knowledge extraction; the Tencent model-proxy upstream is not required.
 
 The local defaults are:
 
@@ -273,7 +273,7 @@ The local defaults are:
 Memory Core   http://127.0.0.1:8420
 Panel UI      http://127.0.0.1:8125
 Knowledge     http://127.0.0.1:8424
-Tencent Proxy http://127.0.0.1:8096  # not used as Codex provider in this harness architecture
+Tencent Proxy not started by agent-harness
 ```
 
 ## Development

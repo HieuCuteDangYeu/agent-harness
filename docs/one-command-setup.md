@@ -37,7 +37,7 @@ Two actions involve account/credential boundaries and should not be silently aut
 
 ### Tencent Memory first-boot LLM credentials
 
-TencentDB Agent Memory uses an LLM for memory extraction/knowledge processing. Its official `start-all.sh` interactively asks for the Memory LLM and proxy upstream settings and tests connectivity before launching containers. The harness delegates this first boot to the upstream script rather than handling your API key itself.
+TencentDB Agent Memory uses an LLM for memory extraction/knowledge processing. The harness prompts only for `MEMORY_LLM_*`, writes those values to Tencent's local `.env`, and then starts Tencent's upstream `start-memory-core.sh` + `start-memory-hub.sh`. It intentionally does not start the Tencent model proxy.
 
 ## Non-interactive/CI use
 
