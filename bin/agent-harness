@@ -39,6 +39,7 @@ init_harness() {
 
   copy_if_missing "$TEMPLATES/AGENTS.md" "$TARGET/AGENTS.md"
   install_skill "repo-skill-bootstrap"
+  install_skill "skill-discovery"
   install_skill "skill-maintenance"
   copy_if_missing "$TEMPLATES/.github/ISSUE_TEMPLATE/agent-task.md" "$TARGET/.github/ISSUE_TEMPLATE/agent-task.md"
   copy_if_missing "$TEMPLATES/.github/pull_request_template.md" "$TARGET/.github/pull_request_template.md"
@@ -53,7 +54,7 @@ init_harness() {
 
   echo
   echo "Harness installed."
-  echo "Next: run repo-skill-bootstrap, review proposals, then generate approved project-specific skills."
+  echo "Next: run skill-discovery for useful external capabilities, then repo-skill-bootstrap for project-specific knowledge."
 }
 
 doctor_harness() {
@@ -71,6 +72,7 @@ doctor_harness() {
 
   check "AGENTS.md"
   check ".agents/skills/repo-skill-bootstrap/SKILL.md"
+  check ".agents/skills/skill-discovery/SKILL.md"
   check ".agents/skills/skill-maintenance/SKILL.md"
   check ".github/ISSUE_TEMPLATE/agent-task.md"
   check ".github/pull_request_template.md"
