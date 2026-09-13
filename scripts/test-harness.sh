@@ -42,6 +42,9 @@ test ! -e "$TMP/scripts/agents/agent-memory"
 AGENT_HARNESS_NONINTERACTIVE=1 \
   "$ROOT/bin/agent-harness" ready "$TMP" --core-only --non-interactive >/dev/null
 
+"$ROOT/bin/agent-harness" --help >/dev/null
+"$ROOT/bin/agent-harness" chatgpt-web --help >/dev/null
+"$ROOT/bin/agent-harness" memory --help >/dev/null
 "$ROOT/bin/agent-memory" --help >/dev/null
 
 echo "Harness smoke test passed."
