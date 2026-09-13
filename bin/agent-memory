@@ -1,27 +1,31 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-PACKAGE="@agentmemory/agentmemory@latest"
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+HARNESS="$ROOT/bin/agent-harness"
 
 usage() {
   cat <<'USAGE'
 agent-memory is a legacy compatibility shim.
 
 Use instead:
+  agent-harness memory start
   agent-harness memory status
-  agent-harness memory doctor
   agent-harness memory stop
+  agent-harness memory restart
+  agent-harness memory logs
+  agent-harness memory viewer
+  agent-harness memory doctor
   agent-harness memory upgrade
 
-Recall/save operations are now exposed directly through the agentmemory MCP tools
+Recall/save operations are exposed directly through the agentmemory MCP tools
 (memory_smart_search, memory_recall, memory_save, memory_lesson_save).
 USAGE
 }
 
 case "${1:-help}" in
-  status|doctor|stop|upgrade)
-    command -v npx >/dev/null 2>&1 || { echo "npx is required" >&2; exit 127; }
-    exec npx -y "$PACKAGE" "$@"
+  start|status|stop|restart|logs|viewer|open|doctor|upgrade)
+    exec "$HARNESS" memory "$@"
     ;;
   help|-h|--help)
     usage
