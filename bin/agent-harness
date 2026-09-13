@@ -26,6 +26,7 @@ usage() {
 agent-harness init [path]
 agent-harness ready [path] [options]
 agent-harness doctor [path]
+agent-harness version
 agent-harness memory <status|search|remember|skills> [...]
 
 ready options:
@@ -129,10 +130,6 @@ init_harness() {
   copy_if_missing "$TEMPLATES/docs/chatgpt-orchestrator.md" "$TARGET/docs/agent-orchestrator.md"
 
   chmod +x "$TARGET/scripts/agents/create-worktree.sh" "$TARGET/scripts/agents/agent-memory"
-
-  if [[ -f "$VERSION_FILE" ]]; then
-    cp "$VERSION_FILE" "$TARGET/.agent-harness-version"
-  fi
 
   log ""
   log "Harness files installed."
@@ -276,7 +273,6 @@ doctor_harness() {
   check "scripts/agents/create-worktree.sh"
   check "scripts/agents/agent-memory"
   check "docs/agent-orchestrator.md"
-  check ".agent-harness-version"
 
   for executable in scripts/agents/create-worktree.sh scripts/agents/agent-memory; do
     if [[ -x "$TARGET/$executable" ]]; then
@@ -317,6 +313,14 @@ case "$COMMAND" in
   doctor)
     TARGET="${1:-.}"
     doctor_harness "$TARGET"
+    ;;
+  version)
+    if [[ -f "$VERSION_FILE" ]]; then
+      cat "$VERSION_FILE"
+    else
+      echo "unknown"
+      exit 1
+    fi
     ;;
   memory)
     exec "$HARNESS_ROOT/bin/agent-memory" "$@"
