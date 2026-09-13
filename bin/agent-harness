@@ -5,7 +5,6 @@ HARNESS_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 TEMPLATES="$HARNESS_ROOT/templates"
 VERSION_FILE="$HARNESS_ROOT/VERSION"
 SETUP_DIR="$HARNESS_ROOT/scripts/setup"
-AGENTMEMORY_PACKAGE="@agentmemory/agentmemory@latest"
 
 COMMAND="${1:-help}"
 if [[ $# -gt 0 ]]; then shift; fi
@@ -28,7 +27,8 @@ agent-harness init [path]
 agent-harness ready [path] [options]
 agent-harness doctor [path]
 agent-harness version
-agent-harness memory <status|doctor|stop|upgrade> [...]
+agent-harness chatgpt-web <status|open|repair>
+agent-harness memory <start|status|stop|restart|logs|viewer|doctor|upgrade> [...]
 
 ready options:
   --yes                 Accept optional installer prompts.
@@ -154,8 +154,6 @@ init_harness() {
     "$TARGET/docs/agent-orchestrator.md" \
     "TencentDB Agent Memory"
 
-  # v0.3.x installed a project-local Tencent-specific memory helper. It is no
-  # longer needed because agentmemory is exposed directly through MCP.
   if [[ -f "$TARGET/scripts/agents/agent-memory" ]] && \
      grep -qF "TencentDB Agent Memory" "$TARGET/scripts/agents/agent-memory"; then
     rm -f "$TARGET/scripts/agents/agent-memory"
@@ -228,10 +226,14 @@ ready_harness() {
 
   log ""
   if [[ "$SKIP_CHATGPT_WEB" -eq 0 ]]; then
-    log "codex-chatgpt-web is unofficial browser automation. It uses your signed-in ChatGPT account."
+    log "Codex Web GPT is unofficial browser automation. It uses your signed-in ChatGPT account."
     log "Review its security model and OpenAI/workspace policies before enabling Full Harness."
-    if confirm "Install/update the codex-chatgpt-web launcher from its upstream release?" 0; then
-      AGENT_HARNESS_NONINTERACTIVE="$NONINTERACTIVE" run_setup_script install-chatgpt-web.sh || warn "ChatGPT Web bridge setup had warnings."
+    if confirm "Set up/open the Codex Web GPT launcher?" 0; then
+      if run_setup_script chatgpt-web-control.sh status >/dev/null 2>&1; then
+        run_setup_script chatgpt-web-control.sh open || warn "Codex Web GPT launcher could not be opened."
+      else
+        AGENT_HARNESS_NONINTERACTIVE="$NONINTERACTIVE" run_setup_script install-chatgpt-web.sh || warn "ChatGPT Web bridge setup had warnings."
+      fi
     else
       warn "ChatGPT Web bridge setup skipped."
     fi
@@ -261,23 +263,33 @@ Codex hooks (if Ponytail and/or agentmemory were installed):
   2. Review the "Hooks need review" prompt and trust only the hooks you accept.
   3. Restart Codex after approval.
 
-ChatGPT Web Full Harness (only if you installed codex-chatgpt-web):
-  1. Open the launcher and sign in to ChatGPT in its embedded browser.
-  2. Run its browser smoke test and install the ChatGPT Web models.
-  3. Open its MCP page, create the tunnel, and follow Full Harness setup.
-  4. In ChatGPT Developer Mode, create the requested connector (currently `Codex Native2`).
-  5. Restart Codex after model/connector setup.
+ChatGPT Web Full Harness (only if you installed Codex Web GPT):
+  1. Keep Codex Web GPT running while using ChatGPT Web models in Codex.
+  2. Sign in to ChatGPT in its embedded browser.
+  3. Run its browser smoke test and install the ChatGPT Web models.
+  4. Open its MCP page, create the tunnel, and follow Full Harness setup.
+  5. In ChatGPT Developer Mode, create the requested connector (currently `Codex Native2`).
+  6. Restart Codex after model/connector setup.
+
+Launcher lifecycle:
+  agent-harness chatgpt-web status
+  agent-harness chatgpt-web open
+  agent-harness chatgpt-web repair
 
 agentmemory:
+  - Runs detached; bootstrap does not occupy your terminal.
   - No LLM API key is required by the harness default.
   - REST/MCP: http://127.0.0.1:3111
   - Viewer:   http://127.0.0.1:3113
   - Local semantic embeddings are enabled; the first semantic request downloads MiniLM once.
   - Codex/Gemini/Antigravity are wired through agentmemory's supported MCP adapters when detected.
 
-Useful checks:
-  agent-harness doctor .
+Memory lifecycle:
   agent-harness memory status
+  agent-harness memory start
+  agent-harness memory restart
+  agent-harness memory logs
+  agent-harness memory viewer
   agent-harness memory doctor
 
 Coding flow:
@@ -324,11 +336,7 @@ doctor_harness() {
   log ""
   log "External readiness (informational):"
   command -v codex >/dev/null 2>&1 && ok "codex" || warn "codex not found"
-  if command -v codex-chatgpt-web >/dev/null 2>&1; then
-    ok "codex-chatgpt-web"
-  else
-    warn "codex-chatgpt-web CLI not detected (optional; launcher may still be installed)"
-  fi
+  run_setup_script chatgpt-web-control.sh status || true
 
   major="$(node_major || echo 0)"
   if [[ "$major" -ge 20 ]] && command -v npx >/dev/null 2>&1; then
@@ -372,9 +380,11 @@ case "$COMMAND" in
       exit 1
     fi
     ;;
+  chatgpt-web)
+    exec bash "$SETUP_DIR/chatgpt-web-control.sh" "$@"
+    ;;
   memory)
-    command -v npx >/dev/null 2>&1 || { echo "npx is required" >&2; exit 127; }
-    exec npx -y "$AGENTMEMORY_PACKAGE" "$@"
+    exec bash "$SETUP_DIR/agentmemory-service.sh" "$@"
     ;;
   help|--help|-h)
     usage
