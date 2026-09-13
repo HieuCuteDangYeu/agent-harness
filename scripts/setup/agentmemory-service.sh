@@ -7,7 +7,14 @@ STATE_ROOT="${XDG_STATE_HOME:-$HOME/.local/state}/agent-harness/agentmemory"
 PID_FILE="$STATE_ROOT/service.pid"
 LOG_FILE="$STATE_ROOT/service.log"
 
-mkdir -p "$STATE_ROOT"
+case "$(uname -s)" in
+  Darwin) DEFAULT_DATA_ROOT="$HOME/Library/Application Support/agentmemory" ;;
+  *) DEFAULT_DATA_ROOT="${XDG_DATA_HOME:-$HOME/.local/share}/agentmemory" ;;
+esac
+DATA_ROOT="${AGENTMEMORY_DATA_DIR:-$DEFAULT_DATA_ROOT}"
+export AGENTMEMORY_DATA_DIR="$DATA_ROOT"
+
+mkdir -p "$STATE_ROOT" "$DATA_ROOT"
 
 ok() { printf 'OK      %s\n' "$*"; }
 warn() { printf 'WARN    %s\n' "$*" >&2; }
@@ -45,6 +52,7 @@ start_service() {
 
   if healthy; then
     ok "agentmemory already healthy at $BASE_URL"
+    echo "INFO    data directory: $DATA_ROOT"
     return 0
   fi
 
@@ -54,7 +62,8 @@ start_service() {
     rm -f "$PID_FILE"
     : > "$LOG_FILE"
     echo "Starting agentmemory in the background..."
-    nohup env CI=1 npx -y "$PACKAGE" >>"$LOG_FILE" 2>&1 </dev/null &
+    echo "Data directory: $DATA_ROOT"
+    nohup env CI=1 AGENTMEMORY_DATA_DIR="$DATA_ROOT" npx -y "$PACKAGE" >>"$LOG_FILE" 2>&1 </dev/null &
     local pid=$!
     printf '%s\n' "$pid" > "$PID_FILE"
     ok "started agentmemory process pid=$pid"
@@ -119,6 +128,7 @@ stop_service() {
 
 status_service() {
   need curl
+  echo "INFO    data directory: $DATA_ROOT"
   if healthy; then
     ok "agentmemory reachable at $BASE_URL"
     if tracked_running; then
@@ -174,11 +184,12 @@ agent-harness memory stop
 agent-harness memory restart
 agent-harness memory logs [lines]
 agent-harness memory viewer
+agent-harness memory data-dir
 agent-harness memory doctor [args...]
 agent-harness memory upgrade [args...]
 
 agent-harness starts agentmemory detached so project setup never occupies your
-terminal. Runtime log: ~/.local/state/agent-harness/agentmemory/service.log
+terminal. Persistent memory data is kept outside project repositories.
 USAGE
 }
 
@@ -204,6 +215,9 @@ case "$command" in
     ;;
   viewer|open)
     open_viewer
+    ;;
+  data-dir)
+    printf '%s\n' "$DATA_ROOT"
     ;;
   doctor)
     need npx
