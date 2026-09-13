@@ -45,7 +45,6 @@ The dispatcher works on local Git branches/worktrees and never pushes or merges 
 |---|---|
 | [First-time setup](docs/first-time-setup.md) | Installing the harness on a machine/project |
 | [How to use](docs/usage.md) | Daily coding, orchestration, automatic dispatch, inspecting results |
-| [Runtime plugins and extensions](docs/plugins.md) | How Ponytail and agentmemory apply to Codex/Gemini/Antigravity tasks |
 | [Architecture](docs/architecture.md) | Understanding the execution model |
 | [Orchestrator protocol](templates/docs/chatgpt-orchestrator.md) | Protocol copied into prepared projects as `docs/agent-orchestrator.md` |
 

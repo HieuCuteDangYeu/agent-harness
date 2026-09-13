@@ -93,8 +93,6 @@ If Ponytail or agentmemory was installed while the host was already open, restar
 
 After this step, you do **not** manually run Ponytail before each coding task. The coding host loads it when that agent starts. agentmemory is also available to the connected host, but agents should query it selectively rather than injecting all memory automatically.
 
-See [Runtime plugins and extensions](plugins.md) for exactly how they affect interactive and orchestrated tasks.
-
 ## 5. Finish Codex Web GPT setup
 
 Use Codex Web GPT only if you want a ChatGPT Web model to act through the local Codex tool surface.

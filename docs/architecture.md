@@ -85,8 +85,6 @@ Persistent data stays outside repositories.
 
 Codex Web GPT is not a Ponytail-style plugin. It is an optional launcher/model/tool bridge that lets a ChatGPT Web model operate through the local Codex tool surface and act as the intelligent orchestrator.
 
-See [Runtime plugins and extensions](plugins.md) for the exact usage model.
-
 ## Why dispatch is deterministic
 
 The LLM should not manually juggle terminal sessions or invent ad-hoc coordination. The execution engine owns the mechanical parts:
