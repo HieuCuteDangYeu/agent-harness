@@ -31,7 +31,7 @@ Improve the reel recommendation system using the repository orchestrator.
 Implement it, verify it, and do not push or merge remotely.
 ```
 
-The orchestrator inspects the repo, creates the task graph internally, runs Codex/Gemini, verifies the result, and returns a local integration branch. You do not write plan JSON yourself.
+The orchestrator inspects the repo, plans internally, runs Codex/Gemini, verifies the result, and keeps repository skills current when durable architecture or workflows changed. You do not write plan JSON yourself.
 
 ## Docs
 
