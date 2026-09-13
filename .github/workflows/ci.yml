@@ -36,4 +36,4 @@ jobs:
         run: ./scripts/test-harness.sh
 
       - name: Run orchestrator smoke test
-        run: ./scripts/test-orchestrator.sh
+        run: bash scripts/test-orchestrator.sh
