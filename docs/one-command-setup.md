@@ -69,6 +69,14 @@ This provides keyless BM25 recall, local MiniLM semantic embeddings, the lean 8-
 
 The important lifecycle behavior is that **agent-harness starts agentmemory detached from the setup terminal**. The upstream default command is a foreground server; the harness wraps it in a background lifecycle so bootstrap can continue to MCP wiring and verification.
 
+Persistent memory is also explicitly kept **outside the current Git repository**. On Linux the default is:
+
+```text
+~/.local/share/agentmemory
+```
+
+or `$XDG_DATA_HOME/agentmemory` when `XDG_DATA_HOME` is set. You can override it with `AGENTMEMORY_DATA_DIR`, but reuse the same path on every restart.
+
 Local services:
 
 ```text
@@ -87,6 +95,7 @@ agent-harness memory stop
 agent-harness memory restart
 agent-harness memory logs
 agent-harness memory viewer
+agent-harness memory data-dir
 agent-harness memory doctor
 agent-harness memory upgrade
 ```
@@ -104,6 +113,8 @@ Codex        → agentmemory connect codex --with-hooks
 Antigravity  → agentmemory connect antigravity
 Gemini CLI   → agentmemory connect gemini-cli
 ```
+
+If an older agentmemory run left `./data/state_store.db` or `./data/iii-config.yaml` in a repository, the harness warns about it but does not move or delete it automatically. The explicit global data directory wins, so new harness-managed runs will not reuse that repository-local state. Inspect/migrate it before deleting it.
 
 ## 5. Finish the one-time UI steps
 
@@ -138,6 +149,7 @@ Run:
 agent-harness doctor .
 agent-harness chatgpt-web status
 agent-harness memory status
+agent-harness memory data-dir
 agent-harness version
 ```
 
@@ -149,6 +161,7 @@ Codex Web GPT                    installed / running when needed
 Node 20+ + npx                   OK
 agentmemory :3111                OK
 Codex MCP config                 OK
+memory data directory            outside the project repository
 ```
 
 ## 7. If setup appears stuck on the agentmemory panel
