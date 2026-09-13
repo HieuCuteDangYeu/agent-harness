@@ -14,7 +14,7 @@ Node.js 20+ with npm/npx
 Codex CLI
 ```
 
-Antigravity/Gemini CLI is optional. Docker is not required for the default memory setup.
+Gemini CLI is optional but required for automatic `gemini` executor tasks. Antigravity remains optional for its interactive IDE workflow. Docker is not required for the default memory setup.
 
 ## 2. Enter the project
 
@@ -36,17 +36,13 @@ Set up/open the Codex Web GPT launcher?                    Y
 Set up keyless local agentmemory (no API key)?             Y
 ```
 
-The bootstrap performs the whole machine/project setup in order. Do not run the internal setup scripts yourself.
+Do not run internal setup scripts yourself.
 
 ## 4. What the command configures
 
 ### Codex Web GPT
 
-The harness installs the official upstream launcher if it is missing or opens the existing launcher if already installed.
-
-Keep Codex Web GPT running whenever Codex is using a ChatGPT Web model.
-
-After setup, manage it only through:
+Keep Codex Web GPT running whenever Codex is using a ChatGPT Web model. Manage it through:
 
 ```bash
 agent-harness chatgpt-web status
@@ -54,28 +50,15 @@ agent-harness chatgpt-web open
 agent-harness chatgpt-web repair
 ```
 
-`repair` reruns the official upstream launcher installer. Fully quit Codex Web GPT first because upstream intentionally refuses to replace a running launcher.
-
 ### agentmemory
 
-The harness configures:
+The harness configures keyless memory with local embeddings and the lean MCP tool set, starts it detached, and explicitly stores persistent data outside the current Git repository.
 
-```text
-EMBEDDING_PROVIDER=local
-AGENTMEMORY_TOOLS=core
-```
-
-This provides keyless BM25 recall, local MiniLM semantic embeddings, the lean 8-tool MCP surface, no automatic LLM compression, and no broad automatic context injection.
-
-The important lifecycle behavior is that **agent-harness starts agentmemory detached from the setup terminal**. The upstream default command is a foreground server; the harness wraps it in a background lifecycle so bootstrap can continue to MCP wiring and verification.
-
-Persistent memory is also explicitly kept **outside the current Git repository**. On Linux the default is:
+Linux default:
 
 ```text
 ~/.local/share/agentmemory
 ```
-
-or `$XDG_DATA_HOME/agentmemory` when `XDG_DATA_HOME` is set. You can override it with `AGENTMEMORY_DATA_DIR`, but reuse the same path on every restart.
 
 Local services:
 
@@ -86,7 +69,7 @@ viewer        http://127.0.0.1:3113
 iii engine    :49134
 ```
 
-Manage it only through:
+Manage it through:
 
 ```bash
 agent-harness memory status
@@ -100,50 +83,15 @@ agent-harness memory doctor
 agent-harness memory upgrade
 ```
 
-Harness-managed logs are at:
-
-```text
-~/.local/state/agent-harness/agentmemory/service.log
-```
-
-The harness wires detected agents using upstream-supported adapters:
-
-```text
-Codex        → agentmemory connect codex --with-hooks
-Antigravity  → agentmemory connect antigravity
-Gemini CLI   → agentmemory connect gemini-cli
-```
-
-If an older agentmemory run left `./data/state_store.db` or `./data/iii-config.yaml` in a repository, the harness warns about it but does not move or delete it automatically. The explicit global data directory wins, so new harness-managed runs will not reuse that repository-local state. Inspect/migrate it before deleting it.
+If an old run left `./data/state_store.db` or `./data/iii-config.yaml`, inspect/migrate it before deleting it. New harness-managed runs use the global data directory.
 
 ## 5. Finish the one-time UI steps
 
-### Codex hooks
+Launch `codex`, review/trust only the Ponytail/agentmemory hooks you accept, then restart Codex.
 
-Launch:
-
-```bash
-codex
-```
-
-Review the **Hooks need review** prompt, trust only the Ponytail/agentmemory hooks you accept, then restart Codex.
-
-### Codex Web GPT Full Harness
-
-In the Codex Web GPT launcher:
-
-1. sign in to ChatGPT in the embedded browser
-2. run the browser smoke test
-3. install the ChatGPT Web models into Codex
-4. enable **Full Harness** from the MCP page
-5. follow the launcher instructions to create the ChatGPT Developer Mode connector (currently `Codex Native2`)
-6. restart Codex
-
-Because agentmemory is a Codex MCP server, the same Full Harness tool surface can expose its memory tools to ChatGPT Web.
+In Codex Web GPT: sign in to ChatGPT, run its browser smoke test, install the Web models, enable **Full Harness**, configure the requested ChatGPT Developer Mode connector, then restart Codex.
 
 ## 6. Verify
-
-Run:
 
 ```bash
 agent-harness doctor .
@@ -161,37 +109,26 @@ Codex Web GPT                    installed / running when needed
 Node 20+ + npx                   OK
 agentmemory :3111                OK
 Codex MCP config                 OK
-memory data directory            outside the project repository
+memory data directory            outside the repository
 ```
 
-## 7. If setup appears stuck on the agentmemory panel
+## 7. Automatic multi-agent execution
 
-If you see a panel such as:
-
-```text
-agentmemory v...
-REST API  http://localhost:3111
-Viewer    http://localhost:3113
-...
-```
-
-and never get the shell prompt back, you are running the old v0.4.0 foreground-start behavior. The service itself is already up; the installer is what is blocked.
-
-Press:
-
-```text
-Ctrl+C
-```
-
-Then rerun the one supported bootstrap command from step 3. v0.4.1+ starts agentmemory detached and continues setup normally.
-
-If startup later fails, use:
+The installed wrapper exposes:
 
 ```bash
-agent-harness memory status
-agent-harness memory logs
-agent-harness memory doctor
+agent-harness orchestrate example
+agent-harness orchestrate /tmp/plan.json --dry-run
+agent-harness orchestrate /tmp/plan.json
 ```
+
+The JSON plan assigns each task to `codex` or `gemini`, declares real `dependsOn` edges, acceptance criteria, and deterministic verification commands. Independent tasks can run concurrently; dependent work waits until prerequisites are successfully integrated.
+
+The dispatcher creates temporary worktrees, runs the assigned CLIs, verifies each task, integrates successful work into a local `agent/orchestrate-*` branch, blocks downstream work on failure/conflict, and optionally runs a final reviewer. Logs/status/summary are stored under `.git/agent-harness/runs/` and therefore do not pollute the working tree.
+
+Nothing is pushed or merged remotely automatically.
+
+For ChatGPT Web orchestration: a **plan-only** request stops after planning; an **implement/execute/build/fix/orchestrate** request should generate the JSON graph, dry-run it, then execute it through Full Harness. The generated `docs/agent-orchestrator.md` explains the protocol.
 
 ## 8. Bootstrap repository-specific skills once
 
@@ -215,29 +152,25 @@ Approve only useful repository-specific skills, then have the agent create them 
 
 ## 9. Daily coding
 
-Normal use becomes:
-
 ```bash
 cd ~/Projects/my-project
-agent-harness chatgpt-web open   # only when you want ChatGPT Web models
+agent-harness chatgpt-web open   # when using ChatGPT Web models
 agent-harness memory start       # safe no-op when already running
 codex
 ```
 
-A normal implementation prompt is:
+For substantial work, tell the ChatGPT Web orchestrator to implement/orchestrate the task; it can now dispatch the task graph automatically.
+
+For a normal single-agent implementation:
 
 ```text
 Implement GitHub issue #142.
 
 Read AGENTS.md and relevant repository skills first.
-Use Ponytail full when available.
 Use agentmemory recall only if historical context can materially help.
-Use skill-discovery if specialist external expertise would improve the task.
 Treat the issue acceptance criteria as the contract.
 Run the specified verification and review the final diff before completion.
 ```
-
-Use `memory_smart_search` / `memory_recall` for selective history and `memory_save` / `memory_lesson_save` only for durable verified lessons.
 
 ## Project files installed
 
@@ -255,6 +188,6 @@ docs/agent-orchestrator.md
 scripts/agents/create-worktree.sh
 ```
 
-Known Tencent-memory files from v0.3.x are migrated/removed only when they still contain the old harness-generated Tencent markers. Other existing project files remain untouched.
+The runtime orchestration state is not a project file; it stays under Git metadata. Exact unmodified older generated orchestrator docs are migrated to the v0.5 protocol while user-edited copies are preserved.
 
-For architecture rationale, see [architecture.md](architecture.md). It intentionally does not define another setup method.
+For architecture rationale, see [architecture.md](architecture.md).
