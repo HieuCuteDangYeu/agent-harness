@@ -21,7 +21,8 @@ fi
 test -x "$TMP/scripts/agents/create-worktree.sh"
 test -x "$TMP/scripts/agents/agent-memory"
 test -f "$TMP/.agents/skills/shared-memory/SKILL.md"
-test "$(cat "$TMP/.agent-harness-version")" = "$(cat "$ROOT/VERSION")"
+test ! -e "$TMP/.agent-harness-version"
+test "$("$ROOT/bin/agent-harness" version)" = "$(cat "$ROOT/VERSION")"
 
 AGENT_HARNESS_NONINTERACTIVE=1 \
   "$ROOT/bin/agent-harness" ready "$TMP" --core-only --non-interactive >/dev/null
