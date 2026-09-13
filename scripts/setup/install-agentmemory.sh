@@ -57,7 +57,7 @@ else
 fi
 
 ready=0
-for _ in $(seq 1 30); do
+for ((i = 0; i < 30; i++)); do
   if curl -fsS --max-time 2 "$BASE_URL/agentmemory/livez" >/dev/null 2>&1; then
     ready=1
     break
@@ -88,7 +88,7 @@ if command -v codex >/dev/null 2>&1; then
   fi
 fi
 
-if command -v agy >/dev/null 2>&1; then
+if command -v agy >/dev/null 2>&1 || command -v antigravity >/dev/null 2>&1; then
   echo "Wiring agentmemory into Antigravity..."
   CI=1 npx -y "$PACKAGE" connect antigravity || warn "Antigravity wiring needs attention."
 fi
@@ -103,7 +103,7 @@ cat <<'NEXT'
 agentmemory is ready in keyless mode.
 
 No OpenAI/Gemini/Anthropic API key is required.
-Defaults selected by agent-harness:
+Defaults selected by agent-harness when those settings were not already configured:
   - local semantic embeddings: Xenova/all-MiniLM-L6-v2
   - MCP tool surface: core (8 tools)
   - automatic LLM compression: off
