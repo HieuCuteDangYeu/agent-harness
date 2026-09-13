@@ -99,6 +99,12 @@ Ensure `~/.local/bin` is on `PATH`, then inside any project:
 agent-harness ready .
 ```
 
+Check the installed harness version without adding metadata to the target project:
+
+```bash
+agent-harness version
+```
+
 Useful flags:
 
 ```text
@@ -132,7 +138,6 @@ ChatGPT Web reaches memory through the Codex Full Harness tool surface and the n
 ```text
 project/
 ├── AGENTS.md
-├── .agent-harness-version
 ├── .agents/
 │   └── skills/
 │       ├── skill-discovery/
