@@ -1,139 +1,192 @@
 # agent-harness
 
-Reusable, framework-agnostic engineering harness for orchestrating ChatGPT Web, Codex, Antigravity/Gemini, repository Agent Skills, GitHub Issues/PRs, Ponytail, optional TencentDB Agent Memory, and deterministic CI.
+A reusable coding harness for projects that use ChatGPT Web, Codex, Antigravity/Gemini, Agent Skills, GitHub, Ponytail, and optional shared memory.
 
-The goal is simple: **enter any Git project, run one command, and prepare as much of the coding harness as can be safely automated.**
+The goal is simple:
 
-## One-command quick start
+> **Enter a Git project, run one setup command, finish the guided prompts, then start coding.**
 
-From the Git repository you want to work on:
+## What is included
+
+| Feature | What it does | Installed by the harness |
+|---|---|---:|
+| `AGENTS.md` | Gives coding agents the same engineering rules: inspect first, keep changes surgical, preserve safety, verify before claiming completion | Yes |
+| `skill-discovery` | Finds maintained external specialist skills for the current task, such as UI/UX, accessibility, security, testing, or migration skills | Yes |
+| `repo-skill-bootstrap` | Finds stable project-specific knowledge that should become repository skills | Yes |
+| `skill-maintenance` | Checks whether major changes require existing project skills to be updated | Yes |
+| `shared-memory` | Teaches agents when to use shared historical memory and when current Git evidence must win | Yes |
+| Ponytail | Adds YAGNI/minimal-change guidance to supported coding agents | Guided install |
+| `codex-chatgpt-web` | Lets ChatGPT Web operate through the local Codex Full Harness tool surface | Guided install |
+| TencentDB Agent Memory | Provides shared memory, extracted skills, Wiki, and CodeGraph through a local Docker sidecar | Guided install |
+| `agent-memory` | Safe CLI for querying/writing Tencent memory without exposing raw SQLite/Mongo administration | Yes |
+| GitHub Issue/PR templates | Keeps implementation tasks compact and reviewable | Yes |
+| Worktree helper | Creates isolated worktrees for Codex/Antigravity tasks | Yes |
+
+The harness does **not** install Codex, Docker, or your project's CI. Those are machine/project prerequisites.
+
+## Prerequisites
+
+Before the first run, make sure the machine has:
+
+- Git
+- Bash
+- curl
+- Codex CLI for the main workflow
+- Docker running if you want shared memory
+- Antigravity/Gemini CLI only if you also want to use it
+
+## Setup — use this one command
+
+Run this **inside the Git repository you want to prepare**:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/HieuCuteDangYeu/agent-harness/main/bootstrap.sh | bash
+bash <(curl -fsSL https://raw.githubusercontent.com/HieuCuteDangYeu/agent-harness/main/bootstrap.sh)
 ```
 
-That one command:
+This is the supported setup path documented by this repository.
 
-1. installs or updates `agent-harness` under `~/.local/share/agent-harness`
-2. links `agent-harness` and `agent-memory` into `~/.local/bin`
-3. runs `agent-harness ready .` for the current project
-4. installs the non-destructive project harness
-5. detects Codex / Antigravity / Gemini / Docker
-6. offers Ponytail installation
-7. offers `codex-chatgpt-web` installation
-8. offers TencentDB Agent Memory local Docker setup
-9. runs a readiness report
-10. prints the few account/credential actions that cannot be safely automated
+The command installs or updates `agent-harness`, prepares the current project, then asks which external integrations to configure.
 
-If you do not want to pipe a remote script into a shell, use the manual installation below and inspect `bootstrap.sh` first.
-
-To pass bootstrap options through the one-liner:
-
-```bash
-curl -fsSL https://raw.githubusercontent.com/HieuCuteDangYeu/agent-harness/main/bootstrap.sh \
-  | bash -s -- --skip-memory
-```
-
-For only the repository-side harness with no external installers:
-
-```bash
-curl -fsSL https://raw.githubusercontent.com/HieuCuteDangYeu/agent-harness/main/bootstrap.sh \
-  | bash -s -- --core-only --non-interactive
-```
-
-## Architecture
+For the complete workflow discussed by this project, answer:
 
 ```text
-                                   GitHub
-                          source of truth / task state
-                                      │
-                                      ▼
-                              ChatGPT Web
-                              ORCHESTRATOR
-                                      │
-                           Full Harness connector
-                                      ▼
-                             codex-chatgpt-web
-                                      │
-                                  Codex
-                    ┌─────────────────┼──────────────────┐
-                    │                 │                  │
-                    ▼                 ▼                  ▼
-               repository          local tools       agent-memory
-                                                           │
-                                                           ▼
-                                                 TencentDB Agent Memory
-                                                 memory / skills / wiki /
-                                                 code graph
-
-                         Codex + Antigravity/Gemini
-                                  │
-                                  ▼
-                             GitHub Actions
-                                  │
-                                  ▼
-                            ChatGPT review
+Install/update Ponytail for detected coding agents?       Y
+Install/update the codex-chatgpt-web launcher?            Y
+Provision TencentDB Agent Memory locally with Docker?     Y
 ```
 
-See [docs/architecture.md](docs/architecture.md) for the full model.
+The ChatGPT-Web bridge requires an explicit `Y` because it is an unofficial browser-automation integration and should not be enabled silently.
 
-## Manual install
+### During Tencent memory setup
 
-Clone once:
+The installer asks for the LLM Tencent uses to extract and organize memories:
 
-```bash
-mkdir -p ~/.local/share ~/.local/bin
-
-git clone \
-  git@github.com:HieuCuteDangYeu/agent-harness.git \
-  ~/.local/share/agent-harness
-
-ln -sf \
-  ~/.local/share/agent-harness/bin/agent-harness \
-  ~/.local/bin/agent-harness
+```text
+Memory LLM base URL:
+Memory LLM model:
+Memory LLM protocol: openai   # or anthropic
+Memory LLM API key:
 ```
 
-Ensure `~/.local/bin` is on `PATH`, then inside any project:
+The harness starts only:
 
-```bash
-agent-harness ready .
+```text
+memory-core       http://127.0.0.1:8420
+Memory Hub        http://127.0.0.1:8125
+knowledge         http://127.0.0.1:8424
 ```
 
-Check the installed harness version without adding metadata to the target project:
+Tencent's model proxy on `:8096` is intentionally **not** started. `codex-chatgpt-web` remains the ChatGPT/Codex model and tool bridge; Tencent is only the memory sidecar.
+
+## Finish the one-time setup
+
+After the command completes, finish these account/UI steps once:
+
+### 1. Trust Ponytail in Codex
+
+Start Codex, open:
+
+```text
+/hooks
+```
+
+Review and trust Ponytail's lifecycle hooks, then start a fresh Codex thread.
+
+### 2. Connect ChatGPT Web to Codex
+
+Open the installed `codex-chatgpt-web` launcher and complete its guided setup:
+
+1. Sign in to ChatGPT in its embedded browser.
+2. Run the browser smoke test.
+3. Install the ChatGPT Web models into Codex.
+4. Open the launcher's MCP page and enable **Full Harness**.
+5. Follow the launcher instructions to create the ChatGPT Developer Mode connector (currently `Codex Native2`).
+6. Restart Codex.
+
+Full Harness is what allows ChatGPT Web to reach the current Codex repository, shell/tools, and `agent-memory` helper.
+
+### 3. Verify the setup
+
+From the prepared project:
 
 ```bash
+agent-harness doctor .
+agent-memory status
 agent-harness version
 ```
 
-Useful flags:
+A healthy setup should show the repository harness files as `OK`; if memory was enabled, `agent-memory status` should reach the local memory service.
 
-```text
---yes
---core-only
---skip-ponytail
---skip-chatgpt-web
---skip-memory
---non-interactive
+## First use in a project
+
+The harness installs the generic skills, but it cannot know your project's architecture until an agent inspects the repository.
+
+Start Codex in the project:
+
+```bash
+codex
 ```
 
-`--yes` explicitly accepts optional installers. Without it, potentially sensitive third-party/account integrations still prompt.
-
-## Important integration choice
-
-TencentDB Agent Memory and `codex-chatgpt-web` can both act as model proxies. This harness **does not stack them as competing Codex model providers**.
-
-The architecture is:
+Then run this once:
 
 ```text
-codex-chatgpt-web -> ChatGPT Web model/tool bridge
-TencentDB Agent Memory -> local memory/knowledge sidecar
+Use repo-skill-bootstrap to analyze this repository.
+
+Do not create skills yet.
+Return the proposed repository-specific skill inventory with:
+- skill name
+- trigger
+- repository evidence
+- important invariants
+- why it belongs in a skill instead of AGENTS.md
+
+Do not propose generic technology skills.
 ```
 
-The harness sidecar installer starts only Tencent `memory-core` + `memory-hub`; it intentionally does **not** start Tencent's `:8096` model proxy. Do not point Codex at that proxy when `codex-chatgpt-web` owns the Codex model route.
+Review the proposals. Then tell the agent to generate only the approved skills under `.agents/skills/` using the host's built-in skill creator when available.
 
-ChatGPT Web reaches memory through the Codex Full Harness tool surface and the narrow `agent-memory` helper rather than raw DB access.
+After this, the project carries its own reusable architecture knowledge instead of making every agent rediscover it from scratch.
 
-## Project files installed
+## Daily use
+
+After the one-time setup, you normally do **not** rerun installation commands. Enter the project and start Codex:
+
+```bash
+codex
+```
+
+For a normal implementation task, use the GitHub Issue as the compact contract and give the agent a prompt like:
+
+```text
+Implement GitHub issue #142.
+
+Read AGENTS.md and the relevant repository skills first.
+Use Ponytail full when available.
+Search shared memory only if historical context can materially help.
+Use skill-discovery if specialist external expertise would improve this task.
+Treat the issue acceptance criteria as the contract.
+Run the specified verification and review the final diff before completion.
+```
+
+For example, a UI task can cause `skill-discovery` to recommend a maintained UI/UX skill instead of generating a generic local UI skill. A repository-specific rule such as your event-delivery or auth invariant belongs in a version-controlled project skill instead.
+
+## How memory is used
+
+Shared memory is for useful historical context, not for replacing the repository.
+
+Agents should use it for things such as prior architecture decisions, past failure/root-cause patterns, and verified task outcomes. The authority order is:
+
+```text
+current code/tests/GitHub
+        >
+AGENTS.md + version-controlled skills
+        >
+shared memory
+```
+
+The `agent-memory` helper intentionally exposes narrow HTTP operations instead of raw database administration.
+
+## Files added to a project
 
 ```text
 project/
@@ -151,132 +204,10 @@ project/
 │   └── agent-orchestrator.md
 └── scripts/
     └── agents/
-        ├── create-worktree.sh
-        └── agent-memory
+        ├── agent-memory
+        └── create-worktree.sh
 ```
 
-The installer is intentionally non-destructive: existing managed files are kept rather than overwritten.
+Existing managed files are not overwritten.
 
-## Knowledge and capability layers
-
-### `skill-discovery`
-
-Find maintained external specialist skills for the **active task**, not merely the whole tech stack. Useful categories include UI/UX, accessibility, security review, migrations, testing, and framework-specific workflows.
-
-It must verify provenance, compatibility, installation scope, maintenance, context cost, and supply-chain/security considerations before recommending a third-party skill. It does not silently install external code.
-
-### `repo-skill-bootstrap`
-
-Discover project-specific knowledge generic skills cannot know, such as service boundaries, event-delivery guarantees, auth invariants, persistence ownership, deployment conventions, and project-specific workflow constraints.
-
-### `skill-maintenance`
-
-After meaningful architecture changes, decide whether durable repository knowledge changed and whether an existing version-controlled skill should be updated.
-
-### `shared-memory`
-
-Use TencentDB Agent Memory selectively for historical context such as prior architecture decisions, important failure/root-cause patterns, task outcomes, extracted skills, Wiki, and CodeGraph knowledge.
-
-Memory is advisory. Current Git/GitHub evidence wins when they conflict.
-
-## Safe memory CLI
-
-When TencentDB Agent Memory is running:
-
-```bash
-agent-memory status
-agent-memory search "reset token replay"
-agent-memory remember "PR #214 made reset tokens single-use after successful consumption"
-agent-memory skills "release verification"
-```
-
-The CLI uses Tencent's HTTP APIs and never opens the backing SQLite/Mongo database directly.
-
-It prefixes search/write content with the current Git repository identity to reduce cross-project noise. This is a retrieval namespace, not an ACL/security boundary; use Tencent Memory Hub Teams/Users/Agents when stronger isolation is required.
-
-## Skill discovery workflow
-
-For a specialist task:
-
-```text
-Use skill-discovery to inspect this project's stack and the current task.
-Recommend only external skills that materially improve execution.
-Do not install anything yet.
-For each recommendation show source, compatibility, install scope, context cost,
-and supply-chain/security notes.
-```
-
-Then discover repository-specific knowledge separately:
-
-```text
-Use repo-skill-bootstrap to analyze this repository.
-Do not create skills yet.
-Return a proposed skill inventory with name, trigger, repository evidence,
-invariants, and why it belongs in a skill instead of AGENTS.md.
-Do not propose generic technology skills.
-```
-
-## Daily engineering flow
-
-1. ChatGPT Web receives the goal.
-2. Retrieve a few relevant shared memories only if history matters.
-3. Inspect current GitHub/repository evidence.
-4. Use `skill-discovery` when specialist external expertise helps.
-5. Compress the result into a GitHub Issue task packet.
-6. Create isolated worktrees for independent agents.
-7. Codex / Antigravity implement.
-8. GitHub Actions verifies deterministic checks.
-9. ChatGPT reviews the actual diff and CI evidence.
-10. Record only durable lessons; promote stable repeated workflows into version-controlled skills.
-
-## Worktree helper
-
-```bash
-./scripts/agents/create-worktree.sh codex 142
-./scripts/agents/create-worktree.sh antigravity 143
-```
-
-## Executor prompt
-
-```text
-Implement GitHub issue #142.
-
-Read AGENTS.md and activate applicable repository skills.
-Use Ponytail full when available.
-Search shared memory only if historical context can materially help.
-Treat the issue acceptance criteria as the contract.
-Inspect analogous implementations before writing code.
-Run the specified verification.
-Review the final diff before completion.
-```
-
-## One-time external setup notes
-
-### Ponytail
-
-The harness uses upstream host-specific installers when detected. Codex users should review/trust Ponytail's lifecycle hooks once via `/hooks` after installation.
-
-### codex-chatgpt-web
-
-This is an unofficial project that automates ChatGPT Web. The harness only downloads/runs its upstream installer after explicit confirmation. Full Harness still requires an embedded-browser login and a ChatGPT Developer Mode connector setup. Review the upstream security model and applicable OpenAI/workspace policies before enabling it.
-
-### TencentDB Agent Memory
-
-The harness clones the official TencentCloud repository and uses its Docker scripts to start only `memory-core` + `memory-hub`. The default backing store is SQLite in a Docker volume. First boot asks only for the LLM endpoint used by memory/knowledge extraction; the Tencent model-proxy upstream is not required.
-
-The local defaults are:
-
-```text
-Memory Core   http://127.0.0.1:8420
-Panel UI      http://127.0.0.1:8125
-Knowledge     http://127.0.0.1:8424
-Tencent Proxy not started by agent-harness
-```
-
-## Development
-
-Validate shell syntax and run the smoke tests:
-
-```bash
-./scripts/test-harness.sh
-```
+For a more detailed explanation of the exact same setup path, see [docs/one-command-setup.md](docs/one-command-setup.md). For design rationale only, see [docs/architecture.md](docs/architecture.md).

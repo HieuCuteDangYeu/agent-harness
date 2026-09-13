@@ -2,6 +2,8 @@
 
 `agent-harness` is a reusable engineering control plane for projects that use ChatGPT Web, Codex, Antigravity/Gemini, GitHub, repository Agent Skills, and optional shared memory.
 
+This document explains **why the components are arranged this way**. It intentionally does not define another installation method. For setup and daily use, follow the single flow in [one-command-setup.md](one-command-setup.md).
+
 ## Control and execution flow
 
 ```text
