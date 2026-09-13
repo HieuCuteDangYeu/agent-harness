@@ -56,4 +56,26 @@ if grep -Eq '^[[:space:]]*CI=1 npx -y "\$PACKAGE"[[:space:]]*$' "$ROOT/scripts/s
   exit 1
 fi
 
+# The supported bootstrap must install a wrapper, not a symlink. A symlink makes
+# BASH_SOURCE point at ~/.local/bin and breaks helper path resolution.
+if grep -Eq 'ln[[:space:]]+-s[f]?[[:space:]].*agent-harness' "$ROOT/bootstrap.sh"; then
+  echo "bootstrap.sh must not symlink agent-harness into the bin directory" >&2
+  exit 1
+fi
+grep -q 'rm -f "$BIN_DIR/agent-harness"' "$ROOT/bootstrap.sh"
+grep -q 'exec %q' "$ROOT/bootstrap.sh"
+grep -q 'chmod 0755 "$BIN_DIR/agent-harness"' "$ROOT/bootstrap.sh"
+
+# Simulate the installed wrapper contract and verify helper-backed commands can
+# still resolve the real harness checkout.
+WRAPPER_DIR="$TMP/local-bin"
+mkdir -p "$WRAPPER_DIR"
+{
+  printf '%s\n' '#!/usr/bin/env bash'
+  printf 'exec %q "$@"\n' "$ROOT/bin/agent-harness"
+} > "$WRAPPER_DIR/agent-harness"
+chmod 0755 "$WRAPPER_DIR/agent-harness"
+"$WRAPPER_DIR/agent-harness" chatgpt-web --help >/dev/null
+"$WRAPPER_DIR/agent-harness" memory --help >/dev/null
+
 echo "Harness smoke test passed."
