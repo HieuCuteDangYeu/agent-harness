@@ -24,7 +24,15 @@ else
   git clone --depth 1 "$REPO_URL" "$INSTALL_DIR"
 fi
 
-ln -sf "$INSTALL_DIR/bin/agent-harness" "$BIN_DIR/agent-harness"
+# Do not symlink the CLI into ~/.local/bin. The CLI resolves helper paths from
+# BASH_SOURCE, so invoking it through a symlink makes it incorrectly treat
+# ~/.local as the harness root. Install a tiny absolute-path wrapper instead.
+rm -f "$BIN_DIR/agent-harness"
+{
+  printf '%s\n' '#!/usr/bin/env bash'
+  printf 'exec %q "$@"\n' "$INSTALL_DIR/bin/agent-harness"
+} > "$BIN_DIR/agent-harness"
+chmod 0755 "$BIN_DIR/agent-harness"
 
 if [[ ":$PATH:" != *":$BIN_DIR:"* ]]; then
   echo "NOTE: $BIN_DIR is not currently on PATH; the bootstrap will run by absolute path now."
