@@ -53,6 +53,7 @@ OLD_ORCHESTRATOR_BLOBS=(
   "5c5a38f6a330c1ac22055ab2c5bc37a92450e2b1" # v0.5.0
   "3727166cebee784d9b50ce679ee9a7fc0f059a7a" # v0.5.1
   "bd883e3adfb2b0173c482ddf3e5b69a97718d74b" # v0.5.2-v0.5.3
+  "b76b8c4dcb6f05ea5f09a3c59805f14d9502f885" # v0.5.4
 )
 if [[ -f "$ORCHESTRATOR_FILE" ]]; then
   current_blob="$(git hash-object "$ORCHESTRATOR_FILE" 2>/dev/null || true)"
