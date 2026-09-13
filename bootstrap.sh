@@ -45,12 +45,20 @@ fi
 
 "$INSTALL_DIR/bin/agent-harness" ready "$TARGET" "$@"
 
-# v0.5 migration: replace the exact old generated orchestrator document, but
-# never overwrite a user-edited copy. This Git blob id is the v0.4.x template.
-OLD_ORCHESTRATOR_BLOB="25d3eac348f367c261a74cb381a276afe9066694"
+# Migrate only exact generated orchestrator documents from older harness
+# versions. Never overwrite a user-edited copy.
 ORCHESTRATOR_FILE="$TARGET/docs/agent-orchestrator.md"
-if [[ -f "$ORCHESTRATOR_FILE" ]] && \
-   [[ "$(git hash-object "$ORCHESTRATOR_FILE" 2>/dev/null || true)" == "$OLD_ORCHESTRATOR_BLOB" ]]; then
-  cp "$INSTALL_DIR/templates/docs/chatgpt-orchestrator.md" "$ORCHESTRATOR_FILE"
-  echo "MIGRATE $ORCHESTRATOR_FILE (automatic dispatcher protocol)"
+OLD_ORCHESTRATOR_BLOBS=(
+  "25d3eac348f367c261a74cb381a276afe9066694" # v0.4.x
+  "5c5a38f6a330c1ac22055ab2c5bc37a92450e2b1" # v0.5.0
+)
+if [[ -f "$ORCHESTRATOR_FILE" ]]; then
+  current_blob="$(git hash-object "$ORCHESTRATOR_FILE" 2>/dev/null || true)"
+  for old_blob in "${OLD_ORCHESTRATOR_BLOBS[@]}"; do
+    if [[ "$current_blob" == "$old_blob" ]]; then
+      cp "$INSTALL_DIR/templates/docs/chatgpt-orchestrator.md" "$ORCHESTRATOR_FILE"
+      echo "MIGRATE $ORCHESTRATOR_FILE (current orchestrator protocol)"
+      break
+    fi
+  done
 fi
