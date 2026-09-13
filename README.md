@@ -1,44 +1,205 @@
 # agent-harness
 
-Reusable, framework-agnostic engineering harness for orchestrating ChatGPT Web, Codex, Antigravity/Gemini, repository Agent Skills, GitHub Issues/PRs, Ponytail, and deterministic CI.
+Reusable, framework-agnostic engineering harness for orchestrating ChatGPT Web, Codex, Antigravity/Gemini, repository Agent Skills, GitHub Issues/PRs, Ponytail, optional TencentDB Agent Memory, and deterministic CI.
 
-## Philosophy
+The goal is simple: **one command per project to prepare the engineering harness, then let agents reuse repository knowledge instead of repeatedly re-learning it.**
 
-- ChatGPT performs expensive research, architecture, decomposition, and final review once.
-- GitHub Issues are compact execution contracts rather than research dumps.
-- Codex and Antigravity read repository context directly and implement isolated tasks.
-- `AGENTS.md` carries universal behavior.
-- `.agents/skills/` carries specialized knowledge with progressive disclosure.
-- `skill-discovery` finds maintained external skills when specialist capability already exists.
-- `repo-skill-bootstrap` generates only repository-specific knowledge that should not come from a generic external skill.
-- Ponytail handles implementation minimalism/YAGNI separately.
-- CI verifies deterministic properties.
+## Architecture
 
-## Install
+```text
+                                   GitHub
+                          source of truth / task state
+                                      │
+                                      ▼
+                              ChatGPT Web
+                              ORCHESTRATOR
+                                      │
+                           Full Harness connector
+                                      ▼
+                             codex-chatgpt-web
+                                      │
+                                  Codex
+                    ┌─────────────────┼──────────────────┐
+                    │                 │                  │
+                    ▼                 ▼                  ▼
+               repository          local tools       agent-memory
+                                                           │
+                                                           ▼
+                                                 TencentDB Agent Memory
+                                                 memory / skills / wiki /
+                                                 code graph
 
-Clone once:
+                         Codex + Antigravity/Gemini
+                                  │
+                                  ▼
+                             GitHub Actions
+                                  │
+                                  ▼
+                            ChatGPT review
+```
+
+See [docs/architecture.md](docs/architecture.md) for the full model.
+
+## Install once
 
 ```bash
 mkdir -p ~/.local/share ~/.local/bin
-git clone git@github.com:HieuCuteDangYeu/agent-harness.git ~/.local/share/agent-harness
-ln -sf ~/.local/share/agent-harness/bin/agent-harness ~/.local/bin/agent-harness
+
+git clone \
+  git@github.com:HieuCuteDangYeu/agent-harness.git \
+  ~/.local/share/agent-harness
+
+ln -sf \
+  ~/.local/share/agent-harness/bin/agent-harness \
+  ~/.local/bin/agent-harness
 ```
 
 Ensure `~/.local/bin` is on `PATH`.
 
-## Bootstrap any existing repository
+## Prepare any project in one command
+
+Inside an existing Git repository:
 
 ```bash
-cd /path/to/project
-agent-harness init .
-agent-harness doctor .
+agent-harness ready .
 ```
 
-The installer is intentionally non-destructive: existing files are kept instead of overwritten.
+This is the recommended entry point.
 
-## Two skill-discovery layers
+It:
 
-After bootstrap, first discover useful maintained external skills:
+- installs the non-destructive project harness
+- installs `AGENTS.md` + meta-skills
+- installs the safe `agent-memory` CLI
+- detects Codex / Antigravity / Gemini / Docker
+- optionally installs Ponytail
+- optionally installs `codex-chatgpt-web`
+- optionally provisions TencentDB Agent Memory with Docker
+- runs a readiness report
+- prints the few one-time account/credential steps that cannot be safely automated
+
+Read [docs/one-command-setup.md](docs/one-command-setup.md) for details.
+
+### Core-only mode
+
+For CI or when you only want repository files:
+
+```bash
+agent-harness ready . --core-only --non-interactive
+```
+
+Other flags:
+
+```text
+--yes
+--skip-ponytail
+--skip-chatgpt-web
+--skip-memory
+--non-interactive
+```
+
+## Important integration choice
+
+TencentDB Agent Memory and `codex-chatgpt-web` can both act as model proxies. This harness **does not stack them as competing Codex model providers**.
+
+The architecture is:
+
+```text
+codex-chatgpt-web -> ChatGPT Web model/tool bridge
+TencentDB Agent Memory -> local memory/knowledge sidecar
+```
+
+The harness sidecar installer starts only Tencent `memory-core` + `memory-hub`; it intentionally does **not** start Tencent's `:8096` model proxy. Do not point Codex at that proxy when `codex-chatgpt-web` owns the Codex model route.
+
+ChatGPT Web reaches memory through the Codex Full Harness tool surface and the narrow `agent-memory` helper rather than raw DB access.
+
+## Project files installed
+
+```text
+project/
+├── AGENTS.md
+├── .agent-harness-version
+├── .agents/
+│   └── skills/
+│       ├── skill-discovery/
+│       ├── repo-skill-bootstrap/
+│       ├── skill-maintenance/
+│       └── shared-memory/
+├── .github/
+│   ├── ISSUE_TEMPLATE/agent-task.md
+│   └── pull_request_template.md
+├── docs/
+│   └── agent-orchestrator.md
+└── scripts/
+    └── agents/
+        ├── create-worktree.sh
+        └── agent-memory
+```
+
+The installer is intentionally non-destructive: existing managed files are kept rather than overwritten.
+
+## Four knowledge/capability layers
+
+### `skill-discovery`
+
+Find maintained external specialist skills for the **active task**, not merely the whole tech stack.
+
+Examples of useful categories:
+
+- UI/UX and design systems
+- accessibility
+- security review
+- migrations
+- testing
+- framework-specific workflows
+
+It must verify provenance/compatibility before recommending installation and must not install third-party code without approval.
+
+### `repo-skill-bootstrap`
+
+Discover project-specific knowledge that generic skills cannot know:
+
+- service boundaries
+- event-delivery guarantees
+- auth invariants
+- persistence ownership
+- deployment conventions
+- project-specific workflow constraints
+
+### `skill-maintenance`
+
+After major PRs, decide whether durable repository knowledge changed and whether an existing version-controlled skill should be updated.
+
+### `shared-memory`
+
+Use TencentDB Agent Memory selectively for historical context such as:
+
+- prior architecture decisions
+- important failure/root-cause patterns
+- task outcomes
+- extracted skills
+- Wiki / CodeGraph knowledge
+
+Memory is advisory. Current Git/GitHub evidence wins when they conflict.
+
+## Safe memory CLI
+
+When TencentDB Agent Memory is running:
+
+```bash
+agent-memory status
+agent-memory search "reset token replay"
+agent-memory remember "PR #214 made reset tokens single-use after successful consumption"
+agent-memory skills "release verification"
+```
+
+The CLI uses Tencent's HTTP APIs and never opens the backing SQLite/Mongo database directly.
+
+It prefixes search/write content with the current Git repository identity to reduce cross-project noise. This is a retrieval namespace, not an ACL/security boundary; use Tencent Memory Hub Teams/Users/Agents when stronger isolation is required.
+
+## Skill discovery workflow
+
+For a specialist task:
 
 ```text
 Use skill-discovery to inspect this project's stack and the current task.
@@ -48,9 +209,7 @@ For each recommendation show source, compatibility, install scope, context cost,
 and supply-chain/security notes.
 ```
 
-For example, a frontend/mobile UI task may benefit from a maintained specialist UI/UX skill instead of generating a local generic UI skill. The discovery skill must verify the current upstream source and compatibility rather than relying on a hard-coded example.
-
-Then discover project-specific knowledge that should become local skills:
+Then discover repository-specific knowledge separately:
 
 ```text
 Use repo-skill-bootstrap to analyze this repository.
@@ -60,33 +219,18 @@ invariants, and why it belongs in a skill instead of AGENTS.md.
 Do not propose generic technology skills.
 ```
 
-After review:
+## Daily engineering flow
 
-```text
-Generate the approved project-specific skills under .agents/skills/ using the
-host's built-in skill creator when available. Keep them concise, project-specific,
-and validated.
-```
-
-The intended split is:
-
-```text
-skill-discovery      -> reusable external expertise
-repo-skill-bootstrap -> repository-specific invariants and workflows
-skill-maintenance    -> keep repository-specific skills current over time
-```
-
-## Daily execution workflow
-
-1. ChatGPT investigates the repository and external evidence.
-2. Use `skill-discovery` when the task would benefit from specialist external capability.
-3. ChatGPT creates/updates a GitHub Issue task packet.
-4. Create an isolated worktree for the chosen agent.
-5. Codex or Antigravity implements from the issue + repository instructions.
-6. CI runs deterministic checks.
-7. A second model may review only where useful.
-8. ChatGPT performs final requirement/architecture review.
-9. After major architectural PRs, run `skill-maintenance`.
+1. ChatGPT Web receives the goal.
+2. Retrieve a few relevant shared memories only if history matters.
+3. Inspect current GitHub/repository evidence.
+4. Use `skill-discovery` when specialist external expertise helps.
+5. Compress the result into a GitHub Issue task packet.
+6. Create isolated worktrees for independent agents.
+7. Codex / Antigravity implement.
+8. GitHub Actions verifies deterministic checks.
+9. ChatGPT reviews the actual diff and CI evidence.
+10. Record only durable lessons; promote stable repeated workflows into version-controlled skills.
 
 ## Worktree helper
 
@@ -95,8 +239,6 @@ skill-maintenance    -> keep repository-specific skills current over time
 ./scripts/agents/create-worktree.sh antigravity 143
 ```
 
-The helper auto-detects the remote default branch, falling back to `main`.
-
 ## Executor prompt
 
 ```text
@@ -104,27 +246,39 @@ Implement GitHub issue #142.
 
 Read AGENTS.md and activate applicable repository skills.
 Use Ponytail full when available.
+Search shared memory only if historical context can materially help.
 Treat the issue acceptance criteria as the contract.
 Inspect analogous implementations before writing code.
 Run the specified verification.
 Review the final diff before completion.
 ```
 
-## Optional shared agent memory
+## One-time external setup notes
 
-A memory database can reduce repeated exploration across Codex, Antigravity, and orchestration sessions, but it is useful only when retrieval is selective. Do not inject the whole memory store into every prompt.
+### Ponytail
 
-Keep authoritative durable knowledge in Git, Issues, `AGENTS.md`, and skills. A shared memory service should hold derived cross-session knowledge such as prior decisions, resolved failure patterns, task outcomes, and compact architecture observations. Retrieve only a small task-relevant subset and treat source-linked repository facts as higher authority than remembered summaries.
+The harness uses the upstream host-specific installers when detected. Codex users should review/trust Ponytail's lifecycle hooks once via `/hooks` after installation.
 
-A future memory layer should expose search/write operations through a small agent tool or MCP service and use namespaces per repository/project. Start without it; add it when repeated exploration across many sessions becomes a measurable source of token usage.
+### codex-chatgpt-web
 
-## What should not become a skill
+This is an unofficial project that automates ChatGPT Web. The harness only downloads/runs its upstream installer after your explicit confirmation. Full Harness still requires an embedded-browser login and a ChatGPT Developer Mode connector setup. Review the upstream security model and applicable OpenAI/workspace policies before enabling it.
 
-Do not generate skills for generic TypeScript, NestJS, React, Redis, PostgreSQL, Docker, or other technology knowledge the model already knows. Generate skills for repository-specific invariants such as event delivery semantics, auth rules, ownership boundaries, processing workflows, or deployment procedures.
+### TencentDB Agent Memory
+
+The harness clones the official TencentCloud repository and uses its Docker scripts to start only `memory-core` + `memory-hub`. The default backing store is SQLite in a Docker volume. First boot asks only for the LLM endpoint used by memory/knowledge extraction; the Tencent model-proxy upstream is not required.
+
+The local defaults are:
+
+```text
+Memory Core   http://127.0.0.1:8420
+Panel UI      http://127.0.0.1:8125
+Knowledge     http://127.0.0.1:8424
+Tencent Proxy not started by agent-harness
+```
 
 ## Development
 
-Run the smoke test:
+Validate shell syntax and run the smoke tests:
 
 ```bash
 ./scripts/test-harness.sh

@@ -12,18 +12,28 @@ Apply instructions in this order:
 
 Never override a higher-priority instruction with a lower-priority one.
 
-## Before changing code
+## Context acquisition
 
 Before implementation:
 
 1. Understand the requested behavior.
-2. Inspect the actual execution path.
-3. Locate relevant tests.
-4. Search for an analogous existing implementation.
-5. Determine the smallest safe change.
-6. Identify assumptions that materially affect correctness.
+2. For substantial work, check shared memory when `agent-memory` is available and historical context could matter.
+3. Inspect the actual current execution path in the repository.
+4. Locate relevant tests.
+5. Search for an analogous existing implementation.
+6. Determine the smallest safe change.
+7. Identify assumptions that materially affect correctness.
 
-Do not implement solely from the issue description when the repository can answer the question.
+Memory is advisory. Current code, tests, issue/PR requirements, and version-controlled project instructions are authoritative.
+
+Do not implement solely from the issue description or a remembered summary when the repository can answer the question.
+
+## Capability selection
+
+- Use `skill-discovery` when a task would materially benefit from specialist external expertise (for example UI/UX, accessibility, security, testing, migration, or framework-specific workflows).
+- Prefer a maintained trustworthy external skill over generating a weaker generic local duplicate.
+- Use `repo-skill-bootstrap` for repository-specific architecture, invariants, and workflows.
+- Do not load unrelated skills merely because the project uses that technology somewhere.
 
 ## Implementation
 
@@ -55,6 +65,9 @@ Simplicity must never remove required:
 - data-integrity checks
 - error handling
 - security controls
+- accessibility requirements
+
+Never put secrets into shared memory.
 
 ## Verification
 
@@ -73,6 +86,12 @@ Never claim a command succeeded unless it was actually executed successfully.
 ## Scope discipline
 
 Do not fix unrelated problems discovered during the task. Report them separately when materially important.
+
+## Durable learning
+
+After a meaningful task is verified, use shared memory only when there is a concise lesson future agents are likely to reuse. Prefer recording the accepted decision/root cause/outcome, with a PR/issue/commit reference when available, rather than raw transcripts or logs.
+
+If a repeated workflow becomes stable procedural knowledge, propose it through `skill-maintenance` instead of repeatedly storing copies in memory.
 
 ## Completion
 
