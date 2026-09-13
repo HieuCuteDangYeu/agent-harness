@@ -97,7 +97,8 @@ export async function run(argv) {
       if (plan.review) console.log(`REVIEW  ${review.status} verdict=${review.verdict}`);
     }
     const finalHead = git(['-C', integrationDir, 'rev-parse', 'HEAD']).stdout;
-    const success = !taskFailed && review.status !== 'failed' && review.status !== 'blocked';
+    const reviewPassed = !plan.review || (review.status === 'success' && review.verdict === 'PASS');
+    const success = !taskFailed && reviewPassed;
     const summary = { ...snapshot(), status: success ? 'success' : 'failed', finalHead, review, completedAt: new Date().toISOString() };
     writeFileSync(path.join(stateRoot, 'summary.json'), `${JSON.stringify(summary, null, 2)}\n`, 'utf8');
     writeStatus(stateRoot, summary);
