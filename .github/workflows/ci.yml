@@ -1,0 +1,24 @@
+name: Harness CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Validate shell syntax
+        run: |
+          bash -n bin/agent-harness
+          bash -n scripts/test-harness.sh
+          bash -n templates/scripts/agents/create-worktree.sh
+
+      - name: Run smoke test
+        run: ./scripts/test-harness.sh

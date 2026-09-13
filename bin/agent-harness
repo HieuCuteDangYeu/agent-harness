@@ -1,0 +1,102 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+HARNESS_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+TEMPLATES="$HARNESS_ROOT/templates"
+VERSION_FILE="$HARNESS_ROOT/VERSION"
+
+COMMAND="${1:-help}"
+TARGET="${2:-.}"
+
+copy_if_missing() {
+  local src="$1"
+  local dst="$2"
+
+  if [ -e "$dst" ]; then
+    echo "KEEP    $dst"
+    return
+  fi
+
+  mkdir -p "$(dirname "$dst")"
+  cp -R "$src" "$dst"
+  echo "CREATE  $dst"
+}
+
+install_skill() {
+  local skill="$1"
+  copy_if_missing "$TEMPLATES/.agents/skills/$skill" "$TARGET/.agents/skills/$skill"
+}
+
+init_harness() {
+  TARGET="$(cd "$TARGET" && pwd)"
+
+  if [ ! -d "$TARGET/.git" ]; then
+    echo "Warning: $TARGET does not appear to be a Git repository."
+  fi
+
+  echo "Installing agent harness into: $TARGET"
+  echo
+
+  copy_if_missing "$TEMPLATES/AGENTS.md" "$TARGET/AGENTS.md"
+  install_skill "repo-skill-bootstrap"
+  install_skill "skill-maintenance"
+  copy_if_missing "$TEMPLATES/.github/ISSUE_TEMPLATE/agent-task.md" "$TARGET/.github/ISSUE_TEMPLATE/agent-task.md"
+  copy_if_missing "$TEMPLATES/.github/pull_request_template.md" "$TARGET/.github/pull_request_template.md"
+  copy_if_missing "$TEMPLATES/scripts/agents/create-worktree.sh" "$TARGET/scripts/agents/create-worktree.sh"
+  copy_if_missing "$TEMPLATES/docs/chatgpt-orchestrator.md" "$TARGET/docs/agent-orchestrator.md"
+
+  chmod +x "$TARGET/scripts/agents/create-worktree.sh"
+
+  if [ -f "$VERSION_FILE" ]; then
+    cp "$VERSION_FILE" "$TARGET/.agent-harness-version"
+  fi
+
+  echo
+  echo "Harness installed."
+  echo "Next: run repo-skill-bootstrap, review proposals, then generate approved project-specific skills."
+}
+
+doctor_harness() {
+  TARGET="$(cd "$TARGET" && pwd)"
+  local failed=0
+
+  check() {
+    if [ -e "$TARGET/$1" ]; then
+      echo "OK      $1"
+    else
+      echo "MISSING $1"
+      failed=1
+    fi
+  }
+
+  check "AGENTS.md"
+  check ".agents/skills/repo-skill-bootstrap/SKILL.md"
+  check ".agents/skills/skill-maintenance/SKILL.md"
+  check ".github/ISSUE_TEMPLATE/agent-task.md"
+  check ".github/pull_request_template.md"
+  check "scripts/agents/create-worktree.sh"
+  check "docs/agent-orchestrator.md"
+  check ".agent-harness-version"
+
+  if [ -x "$TARGET/scripts/agents/create-worktree.sh" ]; then
+    echo "OK      scripts/agents/create-worktree.sh executable"
+  else
+    echo "INVALID scripts/agents/create-worktree.sh is not executable"
+    failed=1
+  fi
+
+  exit "$failed"
+}
+
+case "$COMMAND" in
+  init) init_harness ;;
+  doctor) doctor_harness ;;
+  help|--help|-h)
+    echo "agent-harness init [path]"
+    echo "agent-harness doctor [path]"
+    ;;
+  *)
+    echo "Unknown command: $COMMAND"
+    exit 1
+    ;;
+esac
