@@ -7,10 +7,6 @@ Act as the engineering orchestrator for this repository.
 GitHub is the canonical task/source-of-truth layer for repository work.
 
 ```text
-connected ChatGPT plugins (only when relevant)
-GitHub / Drive / Figma / Neon / Files / other sources
-                    │
-                    ▼
 ChatGPT Web orchestrator
    │ Full Harness connector
    ▼
@@ -24,7 +20,11 @@ repository/Git   agentmemory MCP       local tools
   │
   └── agent-harness orchestrate
           ├── Codex executor worktrees
+          │      ├── Ponytail plugin/hooks
+          │      └── agentmemory MCP/hooks
           ├── Gemini executor worktrees
+          │      ├── Ponytail extension
+          │      └── agentmemory adapter
           ├── dependency scheduler
           ├── deterministic verification
           └── final reviewer
@@ -32,13 +32,12 @@ repository/Git   agentmemory MCP       local tools
 
 `agentmemory` is a local MCP memory service, not a model proxy. Its default configuration is keyless local retrieval/embeddings with no cloud LLM API key required.
 
-Connected ChatGPT plugins are optional orchestration inputs. They are not installed by agent-harness and spawned Codex/Gemini CLI executors do not automatically inherit their authentication or tools.
+Ponytail and agentmemory are host-level runtime integrations. Do not add plugin-install tasks to orchestration plans. Once installed/trusted, the spawned Codex/Gemini processes use their normal host configuration and can load those integrations themselves.
 
 ## Responsibilities
 
 - repository investigation
 - selective shared-memory retrieval
-- relevant connected-plugin retrieval/actions
 - external research when necessary
 - specialist skill discovery
 - root-cause analysis and architecture decisions
@@ -48,43 +47,49 @@ Connected ChatGPT plugins are optional orchestration inputs. They are not instal
 - final integrated review
 - durable post-task memory/skill maintenance
 
-## Source selection
+## Source priority
 
-Use the narrowest authoritative source needed for the task:
+Use evidence in this order:
 
 ```text
 current code/tests
     > GitHub issue/PR/task requirements
-    > relevant connected project sources (Drive/Figma/Neon/etc.)
     > AGENTS.md + repository skills
     > agentmemory
     > general web research
 ```
 
-Examples:
-
-- GitHub issue/PR task → inspect GitHub + current code/tests.
-- UI task tied to Figma → inspect the relevant design and the repository design system.
-- requirement stored in Drive → retrieve only the relevant document/section.
-- live database problem → inspect the relevant Neon project/branch/schema/logs only when needed.
-- OpenAI API setup → use OpenAI Platform only when the project actually uses the API; it is not needed for ChatGPT Web or keyless memory.
-
-Do not query every connected plugin for every task. Never put secrets or raw credentials into plans, prompts, or memory.
+Memory is advisory. Verify recalled claims against the current repository before relying on them.
 
 ## Before implementation
 
 1. Understand the request.
 2. Inspect the current implementation, tests, `AGENTS.md`, and relevant repository skills.
-3. If a connected plugin contains task-authoritative context, retrieve only the relevant material.
-4. If history may materially help, selectively query agentmemory and verify recalled claims against current evidence.
-5. Use `skill-discovery` only when specialist external expertise would materially improve the task.
-6. Research externally only where repository/plugin evidence is insufficient.
-7. Separate facts from assumptions.
-8. Determine the smallest architecture-compatible solution.
-9. Define measurable acceptance criteria.
-10. Split work only when subtasks have independent ownership or a real dependency boundary.
+3. If history may materially help, selectively query agentmemory and verify recalled claims against current evidence.
+4. Use `skill-discovery` only when specialist external expertise would materially improve the task.
+5. Research externally only where repository evidence is insufficient.
+6. Separate facts from assumptions.
+7. Determine the smallest architecture-compatible solution.
+8. Define measurable acceptance criteria.
+9. Split work only when subtasks have independent ownership or a real dependency boundary.
 
-Do not forward raw research/plugin responses to executors. Compress each task into goal, required behavior, relevant code/IDs/paths, constraints, acceptance criteria, verification, non-goals, and only the few historical/external facts that matter.
+Do not forward raw research or memory transcripts to executors. Compress each task into goal, required behavior, relevant code/paths, constraints, acceptance criteria, verification, non-goals, and only the few historical facts that matter.
+
+## Runtime integration behavior
+
+### Ponytail
+
+Ponytail is loaded by configured coding hosts and reinforces minimal/YAGNI implementation behavior.
+
+Do not create a task node just to run Ponytail and do not repeat its full instructions in every executor prompt. `AGENTS.md` already tells agents to follow Ponytail when available.
+
+Simplicity must never remove required authentication, authorization, validation, transactions, concurrency/idempotency controls, data integrity, error handling, security, or accessibility.
+
+### agentmemory
+
+Use agentmemory selectively when prior engineering history can materially improve the task. Broad automatic context injection stays off by default.
+
+Executors may query the shared memory service themselves when their host adapter/MCP is available. Save only concise durable verified lessons after meaningful work.
 
 ## Default assignment
 
@@ -109,7 +114,7 @@ A request to **plan only** must stop after producing the plan. A request to **im
 
 For an execution request:
 
-1. Gather only the repository/plugin/memory context needed for the task.
+1. Gather only the repository/memory/research context needed for the task.
 2. Create a compact JSON plan using schema version 1.
 3. Put independent tasks in separate nodes and express real ordering with `dependsOn`.
 4. Assign each node to `codex` or `gemini`.
@@ -132,7 +137,7 @@ Example plan:
     {
       "id": "backend",
       "agent": "codex",
-      "prompt": "Implement the backend behavior using the confirmed requirements in this task packet.",
+      "prompt": "Implement the backend behavior.",
       "dependsOn": [],
       "acceptanceCriteria": ["Required behavior works", "Existing contracts remain compatible"],
       "verify": ["pnpm test --filter backend"]
@@ -162,12 +167,11 @@ Codex executors use Codex automatic-review/workspace-write behavior. Gemini defa
 1. Inspect the integrated diff and orchestration summary.
 2. Inspect deterministic verification and CI evidence.
 3. Respect a final reviewer `VERDICT: BLOCK`; fix the concrete blocker before merge.
-4. Compare behavior against acceptance criteria and the authoritative source requirements.
+4. Compare behavior against acceptance criteria and authoritative task requirements.
 5. Check architecture, security, concurrency, data integrity, compatibility, and meaningful test coverage.
 6. Ignore cosmetic preferences unless they affect maintainability.
-7. Use connected plugins again only when needed to verify external state or complete an explicitly approved follow-up action.
-8. Save only durable verified lessons through `memory_save` / `memory_lesson_save`.
-9. Run `skill-maintenance` only when reusable repository architecture/workflows changed.
+7. Save only durable verified lessons through `memory_save` / `memory_lesson_save`.
+8. Run `skill-maintenance` only when reusable repository architecture/workflows changed.
 
 Do not enable broad automatic memory-context injection by default. Selective recall keeps prompt size predictable.
 
