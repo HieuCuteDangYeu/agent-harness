@@ -110,6 +110,17 @@ replace_legacy_if_present() {
   fi
 }
 
+remove_if_unchanged_hash() {
+  local dst="$1"
+  local expected_hash="$2"
+
+  if [[ -f "$dst" ]] && [[ "$(git hash-object "$dst" 2>/dev/null || true)" == "$expected_hash" ]]; then
+    rm -f "$dst"
+    echo "REMOVE  $dst (obsolete generated template)"
+    rmdir "$(dirname "$dst")" 2>/dev/null || true
+  fi
+}
+
 install_skill() {
   local skill="$1"
   copy_if_missing "$TEMPLATES/.agents/skills/$skill" "$TARGET/.agents/skills/$skill"
@@ -145,8 +156,12 @@ init_harness() {
     "$TARGET/.agents/skills/shared-memory/SKILL.md" \
     "TencentDB Agent Memory"
 
-  copy_if_missing "$TEMPLATES/.github/ISSUE_TEMPLATE/agent-task.md" "$TARGET/.github/ISSUE_TEMPLATE/agent-task.md"
-  copy_if_missing "$TEMPLATES/.github/pull_request_template.md" "$TARGET/.github/pull_request_template.md"
+  # v0.5.6 and older created GitHub issue/PR templates. They are no longer part
+  # of the harness contract. Remove only exact harness-generated copies and
+  # leave user/project-owned .github files untouched.
+  remove_if_unchanged_hash "$TARGET/.github/ISSUE_TEMPLATE/agent-task.md" "1a7563227f79eb2edd6ecb83ad4fd38fbadcaf35"
+  remove_if_unchanged_hash "$TARGET/.github/pull_request_template.md" "180a428ed4da1e5fc621e8d86ddd6270f50e62e3"
+
   copy_if_missing "$TEMPLATES/scripts/agents/create-worktree.sh" "$TARGET/scripts/agents/create-worktree.sh"
   copy_if_missing "$TEMPLATES/docs/chatgpt-orchestrator.md" "$TARGET/docs/agent-orchestrator.md"
   replace_legacy_if_present \
@@ -323,8 +338,6 @@ doctor_harness() {
   check ".agents/skills/skill-discovery/SKILL.md"
   check ".agents/skills/skill-maintenance/SKILL.md"
   check ".agents/skills/shared-memory/SKILL.md"
-  check ".github/ISSUE_TEMPLATE/agent-task.md"
-  check ".github/pull_request_template.md"
   check "scripts/agents/create-worktree.sh"
   check "docs/agent-orchestrator.md"
 
