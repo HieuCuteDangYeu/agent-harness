@@ -37,12 +37,23 @@ run Codex / Gemini in isolated worktrees
    ↓
 run deterministic verification
    ↓
+run skill-maintenance
+   ↓
 final review
    ↓
 local integration branch
 ```
 
 You do not create the task graph or plan JSON yourself.
+
+### Skill maintenance
+
+After substantial implementation, the orchestrator checks the integrated change with `skill-maintenance`.
+
+- `NO_SKILL_CHANGE` → no skill files are changed.
+- `UPDATE_SKILL` / `CREATE_SKILL` / `REMOVE_SKILL` → apply only the required `.agents/skills/` change.
+
+This keeps repository-specific knowledge aligned with the code before final review. One-off implementation details should not become skills.
 
 ## Plan only
 
@@ -81,6 +92,7 @@ It automatically:
 - waits for dependencies
 - runs declared verification commands itself
 - integrates successful changes into `agent/orchestrate-*`
+- runs the skill-maintenance task after implementation
 - blocks dependent work after failures or conflicts
 - runs a final reviewer
 - stores logs under `.git/agent-harness/`

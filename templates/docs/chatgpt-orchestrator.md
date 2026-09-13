@@ -54,6 +54,19 @@ Each task should contain only what the executor needs:
 
 Do not forward raw research or memory transcripts.
 
+## Skill maintenance
+
+For substantial implementation, add a final `skill-maintenance` task that depends on all implementation/test tasks and runs before final review.
+
+Its job is to inspect the integrated change with the repository `skill-maintenance` skill:
+
+- `NO_SKILL_CHANGE` → make no edits
+- `UPDATE_SKILL <name>` → update that skill
+- `CREATE_SKILL <name>` → create only that durable repository skill
+- `REMOVE_SKILL <name>` → remove the stale skill
+
+The maintenance task may modify only `.agents/skills/`. Do not turn one-off fixes, obvious code facts, or generic framework behavior into skills.
+
 ## Execute
 
 If the user asked only for a plan, show the concise task graph and stop.
@@ -61,37 +74,22 @@ If the user asked only for a plan, show the concise task graph and stop.
 If the user asked to implement, fix, build, execute, or orchestrate:
 
 1. create a schema-version-1 dispatcher plan internally
-2. save it under `.git/agent-harness/plans/`
-3. invoke `agent-harness orchestrate <generated-plan.json>`
-4. inspect the integration branch, task results, verification, and final review
-5. report the result; do not push or merge remotely unless explicitly requested
+2. include the final `skill-maintenance` task for substantial work
+3. save the plan under `.git/agent-harness/plans/`
+4. invoke `agent-harness orchestrate <generated-plan.json>`
+5. inspect the integration branch, task results, verification, skill maintenance, and final review
+6. report the result; do not push or merge remotely unless explicitly requested
 
 The dispatcher validates the plan before starting branches, worktrees, or agents. A separate dry-run is only needed when the user asks to preview/approve the plan first.
 
-Plan shape:
+Example task order:
 
-```json
-{
-  "version": 1,
-  "name": "task-name",
-  "goal": "Requested outcome",
-  "base": "HEAD",
-  "maxParallel": 2,
-  "tasks": [
-    {
-      "id": "implementation",
-      "agent": "codex",
-      "prompt": "Implement the required behavior.",
-      "dependsOn": [],
-      "acceptanceCriteria": ["Required behavior works"],
-      "verify": ["targeted verification command"]
-    }
-  ],
-  "review": {
-    "agent": "codex",
-    "prompt": "Review correctness, architecture, security, compatibility, and tests."
-  }
-}
+```text
+implementation / tests
+        ↓
+skill-maintenance
+        ↓
+final reviewer
 ```
 
 ## Runtime behavior
@@ -107,13 +105,12 @@ Ponytail and agentmemory are host integrations. Do not create setup tasks for th
 
 Before reporting success:
 
-1. inspect the integrated diff
+1. inspect the integrated diff, including any skill changes
 2. inspect deterministic verification results
-3. require the configured reviewer to return `VERDICT: PASS`
-4. check the result against the user's task and current repository contracts
-5. report remaining risks or assumptions
-
-Run `skill-maintenance` only when reusable repository architecture or workflows changed.
+3. confirm repository skills still match durable current behavior
+4. require the configured reviewer to return `VERDICT: PASS`
+5. check the result against the user's task and current repository contracts
+6. report remaining risks or assumptions
 
 Optimize for:
 
