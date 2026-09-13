@@ -1,11 +1,11 @@
 ---
 name: shared-memory
-description: Use the optional shared TencentDB Agent Memory sidecar to recover relevant prior engineering decisions, failures, outcomes, and extracted skills without flooding the prompt. Use for substantial tasks where historical project context may avoid repeated exploration, and after meaningful work when a concise durable lesson should be preserved.
+description: Use the shared local agentmemory MCP to recover relevant prior engineering decisions, failures, outcomes, and lessons without flooding context. Use for substantial tasks where historical project context can avoid repeated exploration, and after verified work when a concise durable lesson should be preserved.
 ---
 
 # Shared Agent Memory
 
-Use shared memory to avoid rediscovering history. Never treat it as the source of truth.
+Use agentmemory to avoid rediscovering history. Never treat memory as the source of truth.
 
 ## Source-of-truth order
 
@@ -21,56 +21,48 @@ If memory conflicts with the current repository, the repository wins.
 
 ## Read path
 
-When a substantial task may depend on prior decisions or failures, and `agent-memory` is available:
+For substantial work where prior decisions or failures may matter, use the agentmemory MCP tools exposed by the current agent:
 
-```bash
-agent-memory search "<concise task or decision query>"
-```
+- `memory_smart_search` for the normal retrieval path
+- `memory_recall` when a direct keyword-oriented recall is enough
+- `memory_sessions` only when session history itself matters
 
-Use only the few results relevant to the task. Do not dump the entire memory store into context.
+Start with a concise task-specific query and a small result set. Do not inject the whole memory store into context.
 
-For reusable extracted skills:
+The harness defaults to keyless local operation with local MiniLM embeddings and the lean core MCP tool set. No OpenAI, Gemini, or Anthropic API key is required for normal recall/save behavior.
 
-```bash
-agent-memory skills "<capability or workflow>"
-```
-
-Validate any returned skill against current repository conventions before relying on it.
-
-Skip memory retrieval for trivial edits where historical context is unlikely to change the answer.
+Skip memory retrieval for trivial edits where history is unlikely to change the solution.
 
 ## Write path
 
-Record only durable engineering knowledge after it has been verified, for example:
+After work is verified, use `memory_save` or `memory_lesson_save` only for durable engineering knowledge such as:
 
 - accepted architecture decisions
 - non-obvious invariants
 - root causes of important failures
 - successful remediation patterns
-- task outcomes that future agents are likely to need
+- task outcomes future agents are likely to need
 
-Use:
-
-```bash
-agent-memory remember "<short durable engineering fact with useful context>"
-```
+Keep writes concise and evidence-based. Include the relevant GitHub issue, PR, or commit when useful so future agents can verify the claim.
 
 Do not store:
 
 - passwords, API keys, tokens, secrets, or private credentials
-- raw logs that can be reproduced
+- reproducible raw logs
 - full chat transcripts merely because they exist
 - temporary implementation details
 - speculative conclusions
 
-Memory writes should be concise and evidence-based. When useful, mention the GitHub issue, PR, or commit in the recorded text so future retrieval can verify the source.
+## Automatic behavior
 
-## Project isolation
+Do not enable broad automatic context injection merely because the feature exists. The harness keeps automatic context injection and LLM compression off by default to protect context size and avoid unnecessary API usage.
 
-The harness prefixes memory content/searches with the repository identity derived from Git remote or the repository directory. This is a lightweight namespace, not a security boundary. Use Tencent Memory Hub Team/User/Agent ACLs when stronger isolation is required.
+Retrieve memory deliberately when it can materially improve the task.
+
+## Project boundaries
+
+agentmemory is shared across connected local agents. Current repository context should be included in saved lessons when the knowledge is repository-specific. Treat memory namespaces and tags as retrieval aids, not security boundaries.
 
 ## ChatGPT Web bridge
 
-With `codex-chatgpt-web` Full Harness, ChatGPT Web can ask the local Codex harness to run the safe `agent-memory` CLI through its turn-bound tool surface.
-
-Do not expose raw SQLite/Mongo administration or arbitrary database credentials to the web model. Prefer the narrow CLI/API operations in this harness.
+When `codex-chatgpt-web` Full Harness is enabled, ChatGPT Web operates through the current Codex tool surface. Because agentmemory is registered as a Codex MCP server, the same memory tools can be available through that harness without exposing raw storage or database administration.
