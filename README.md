@@ -19,7 +19,7 @@ A reusable coding harness for ChatGPT Web, Codex, Antigravity/Gemini, Agent Skil
 | GitHub Issue/PR templates | Compact implementation and review contracts |
 | Worktree helper | Isolated worktrees for parallel agents |
 
-`agentmemory` defaults to keyless local operation: BM25 recall, local MiniLM embeddings, the lean 8-tool MCP surface, no automatic LLM compression, and no broad automatic context injection. No OpenAI/Gemini/Anthropic API key is required.
+`agentmemory` defaults to keyless local operation: BM25 recall, local MiniLM embeddings, the lean 8-tool MCP surface, no automatic LLM compression, and no broad automatic context injection. No OpenAI/Gemini/Anthropic API key is required. Persistent memory data is stored outside project repositories (`$XDG_DATA_HOME/agentmemory` or `~/.local/share/agentmemory` on Linux), so it does not pollute Git working trees.
 
 ## Prerequisites
 
@@ -57,9 +57,10 @@ The harness then:
 3. installs Ponytail for detected agents
 4. installs or opens Codex Web GPT
 5. starts `agentmemory` **detached**, so setup returns your terminal
-6. enables local semantic embeddings + the lean MCP tool surface
-7. wires agentmemory into Codex/Gemini/Antigravity when detected
-8. runs readiness checks
+6. keeps agentmemory persistence outside the current Git repository
+7. enables local semantic embeddings + the lean MCP tool surface
+8. wires agentmemory into Codex/Gemini/Antigravity when detected
+9. runs readiness checks
 
 ## Finish the one-time UI setup
 
@@ -96,6 +97,7 @@ Run:
 agent-harness doctor .
 agent-harness chatgpt-web status
 agent-harness memory status
+agent-harness memory data-dir
 agent-harness version
 ```
 
@@ -105,6 +107,14 @@ Expected local endpoints:
 agentmemory REST/MCP  http://127.0.0.1:3111
 agentmemory viewer    http://127.0.0.1:3113
 ```
+
+On Linux the default persistent memory path is:
+
+```text
+~/.local/share/agentmemory
+```
+
+The runtime PID/log files are separate under `~/.local/state/agent-harness/agentmemory`.
 
 ## Lifecycle commands
 
@@ -130,6 +140,7 @@ agent-harness memory stop
 agent-harness memory restart
 agent-harness memory logs
 agent-harness memory viewer
+agent-harness memory data-dir
 agent-harness memory doctor
 agent-harness memory upgrade
 ```
@@ -139,6 +150,8 @@ The harness starts agentmemory in the background and writes its runtime log to:
 ```text
 ~/.local/state/agent-harness/agentmemory/service.log
 ```
+
+If an old agentmemory run left `./data/state_store.db` or `./data/iii-config.yaml` inside a project, the harness will warn about it but will not delete or move it automatically. Inspect/migrate that legacy data before removing it. New harness-managed runs explicitly use the global data directory instead.
 
 If you ever see the agentmemory ready panel followed by no shell prompt during bootstrap, that is the old foreground-start behavior from v0.4.0. Press `Ctrl+C`, rerun the one supported bootstrap command above, and v0.4.1+ will start it detached.
 

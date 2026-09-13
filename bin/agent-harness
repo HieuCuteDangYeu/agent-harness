@@ -28,7 +28,7 @@ agent-harness ready [path] [options]
 agent-harness doctor [path]
 agent-harness version
 agent-harness chatgpt-web <status|open|repair>
-agent-harness memory <start|status|stop|restart|logs|viewer|doctor|upgrade> [...]
+agent-harness memory <start|status|stop|restart|logs|viewer|data-dir|doctor|upgrade> [...]
 
 ready options:
   --yes                 Accept optional installer prompts.
@@ -278,6 +278,7 @@ Launcher lifecycle:
 
 agentmemory:
   - Runs detached; bootstrap does not occupy your terminal.
+  - Persistent memory data stays outside the project repository.
   - No LLM API key is required by the harness default.
   - REST/MCP: http://127.0.0.1:3111
   - Viewer:   http://127.0.0.1:3113
@@ -286,6 +287,7 @@ agentmemory:
 
 Memory lifecycle:
   agent-harness memory status
+  agent-harness memory data-dir
   agent-harness memory start
   agent-harness memory restart
   agent-harness memory logs

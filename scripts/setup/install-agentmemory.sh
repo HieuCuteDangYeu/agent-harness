@@ -7,6 +7,13 @@ ENV_DIR="$HOME/.agentmemory"
 ENV_FILE="$ENV_DIR/.env"
 SERVICE_SCRIPT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/agentmemory-service.sh"
 
+case "$(uname -s)" in
+  Darwin) DEFAULT_DATA_ROOT="$HOME/Library/Application Support/agentmemory" ;;
+  *) DEFAULT_DATA_ROOT="${XDG_DATA_HOME:-$HOME/.local/share}/agentmemory" ;;
+esac
+DATA_ROOT="${AGENTMEMORY_DATA_DIR:-$DEFAULT_DATA_ROOT}"
+export AGENTMEMORY_DATA_DIR="$DATA_ROOT"
+
 env_changed=0
 
 warn() { printf 'WARN    %s\n' "$*" >&2; }
@@ -30,7 +37,7 @@ if [[ "$node_major" -lt 20 ]]; then
 fi
 ok "Node $(node -v)"
 
-mkdir -p "$ENV_DIR"
+mkdir -p "$ENV_DIR" "$DATA_ROOT"
 touch "$ENV_FILE"
 chmod 600 "$ENV_FILE"
 
@@ -50,6 +57,15 @@ ensure_env() {
 # the lean core tool set keeps MCP/tool context small.
 ensure_env EMBEDDING_PROVIDER local
 ensure_env AGENTMEMORY_TOOLS core
+ok "agentmemory data directory: $DATA_ROOT"
+
+# Upstream keeps backward compatibility with ./data when old state files exist.
+# The harness always supplies AGENTMEMORY_DATA_DIR, so repository-local data is
+# never selected implicitly. Do not auto-delete/move a project's data directory.
+if [[ -f "$PWD/data/state_store.db" || -f "$PWD/data/iii-config.yaml" ]]; then
+  warn "Legacy repo-local agentmemory data detected at $PWD/data"
+  warn "The harness will use $DATA_ROOT instead. Inspect/migrate the old data before deleting it."
+fi
 
 # Upstream's default `agentmemory` command is a long-running foreground worker.
 # Always go through our lifecycle wrapper so bootstrap gets its terminal back.
@@ -86,7 +102,7 @@ if command -v gemini >/dev/null 2>&1; then
   CI=1 npx -y "$PACKAGE" connect gemini-cli || warn "Gemini CLI wiring needs attention."
 fi
 
-cat <<'NEXT'
+cat <<NEXT
 
 agentmemory is ready in keyless mode and runs detached from this terminal.
 
@@ -96,6 +112,7 @@ Defaults selected by agent-harness when those settings were not already configur
   - MCP tool surface: core (8 tools)
   - automatic LLM compression: off
   - automatic context injection: off unless you enable it yourself
+  - persistent data directory: $DATA_ROOT
 
 Local endpoints:
   REST / MCP: http://127.0.0.1:3111
@@ -103,6 +120,7 @@ Local endpoints:
 
 Lifecycle:
   agent-harness memory status
+  agent-harness memory data-dir
   agent-harness memory restart
   agent-harness memory logs
   agent-harness memory viewer
