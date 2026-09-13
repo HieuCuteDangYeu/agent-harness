@@ -131,6 +131,11 @@ init_harness() {
   log ""
 
   copy_if_missing "$TEMPLATES/AGENTS.md" "$TARGET/AGENTS.md"
+  replace_legacy_if_present \
+    "$TEMPLATES/AGENTS.md" \
+    "$TARGET/AGENTS.md" \
+    'check shared memory when `agent-memory` is available'
+
   install_skill "repo-skill-bootstrap"
   install_skill "skill-discovery"
   install_skill "skill-maintenance"
@@ -187,7 +192,7 @@ ready_harness() {
   command -v git >/dev/null 2>&1 && ok "git" || warn "git not found"
   command -v curl >/dev/null 2>&1 && ok "curl" || warn "curl not found"
   command -v codex >/dev/null 2>&1 && ok "Codex detected" || warn "Codex not detected; install it separately before using Codex workflows."
-  if command -v agy >/dev/null 2>&1; then
+  if command -v agy >/dev/null 2>&1 || command -v antigravity >/dev/null 2>&1; then
     ok "Antigravity CLI detected"
   elif command -v gemini >/dev/null 2>&1; then
     ok "Gemini CLI detected"
