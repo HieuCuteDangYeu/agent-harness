@@ -43,4 +43,14 @@ if [[ ":$PATH:" != *":$BIN_DIR:"* ]]; then
   echo "NOTE: $BIN_DIR is not currently on PATH; the bootstrap will run by absolute path now."
 fi
 
-exec "$INSTALL_DIR/bin/agent-harness" ready "$TARGET" "$@"
+"$INSTALL_DIR/bin/agent-harness" ready "$TARGET" "$@"
+
+# v0.5 migration: replace the exact old generated orchestrator document, but
+# never overwrite a user-edited copy. This Git blob id is the v0.4.x template.
+OLD_ORCHESTRATOR_BLOB="25d3eac348f367c261a74cb381a276afe9066694"
+ORCHESTRATOR_FILE="$TARGET/docs/agent-orchestrator.md"
+if [[ -f "$ORCHESTRATOR_FILE" ]] && \
+   [[ "$(git hash-object "$ORCHESTRATOR_FILE" 2>/dev/null || true)" == "$OLD_ORCHESTRATOR_BLOB" ]]; then
+  cp "$INSTALL_DIR/templates/docs/chatgpt-orchestrator.md" "$ORCHESTRATOR_FILE"
+  echo "MIGRATE $ORCHESTRATOR_FILE (automatic dispatcher protocol)"
+fi
