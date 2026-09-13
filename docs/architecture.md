@@ -18,7 +18,8 @@ This document explains **why the components are arranged this way**. It intentio
                                       │
                            Full Harness connector
                                       ▼
-                             codex-chatgpt-web
+                              Codex Web GPT
+                           launcher must be running
                                       │
                              local Codex harness
                     ┌─────────────────┼──────────────────┐
@@ -51,9 +52,18 @@ This document explains **why the components are arranged this way**. It intentio
    durable memory       skill-maintenance
 ```
 
+## Runtime ownership
+
+Two local runtimes need different lifecycle behavior:
+
+- **Codex Web GPT** owns the embedded ChatGPT browser/session and must stay running while Codex uses ChatGPT Web models or Full Harness. The harness exposes `chatgpt-web status/open/repair` instead of asking users to remember upstream launcher commands.
+- **agentmemory** is a long-running server. Upstream's default command runs in the foreground, so the harness starts it detached, records a runtime log/PID, health-checks it, and exposes `memory start/status/stop/restart/logs/viewer/doctor/upgrade`.
+
+Neither runtime replaces Codex itself. Codex remains the local coding harness; these are supporting services around it.
+
 ## Why agentmemory fits this harness
 
-`agentmemory` is used as an MCP/REST memory service rather than as a model proxy. That avoids any conflict with `codex-chatgpt-web`, which remains responsible for the ChatGPT-Web model bridge and Full Harness tool bridge.
+`agentmemory` is used as an MCP/REST memory service rather than as a model proxy. That avoids any conflict with Codex Web GPT, which remains responsible for the ChatGPT-Web model bridge and Full Harness tool bridge.
 
 All connected local agents can share the same memory server. The harness wires supported adapters for Codex, Gemini CLI, and Antigravity when those hosts are detected.
 
@@ -112,5 +122,5 @@ agentmemory stores useful prior engineering context and lessons. It is advisory 
 - Keep secrets, API keys, passwords, and tokens out of memory.
 - Do not expose raw storage administration to ChatGPT Web.
 - Keep Codex approval controls enabled for write/tool operations.
-- `codex-chatgpt-web` is unofficial browser automation; review its security model and applicable OpenAI/workspace policies before enabling Full Harness.
+- Codex Web GPT is unofficial browser automation; review its security model and applicable OpenAI/workspace policies before enabling Full Harness.
 - Repository code and current GitHub requirements override remembered summaries.

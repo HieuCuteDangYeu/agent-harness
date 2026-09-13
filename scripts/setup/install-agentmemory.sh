@@ -5,6 +5,7 @@ PACKAGE="@agentmemory/agentmemory@latest"
 BASE_URL="${AGENTMEMORY_URL:-http://127.0.0.1:3111}"
 ENV_DIR="$HOME/.agentmemory"
 ENV_FILE="$ENV_DIR/.env"
+SERVICE_SCRIPT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/agentmemory-service.sh"
 
 env_changed=0
 
@@ -50,41 +51,14 @@ ensure_env() {
 ensure_env EMBEDDING_PROVIDER local
 ensure_env AGENTMEMORY_TOOLS core
 
-running=0
-if curl -fsS --max-time 2 "$BASE_URL/agentmemory/livez" >/dev/null 2>&1; then
-  running=1
-fi
-
-if [[ "$running" -eq 1 && "$env_changed" -eq 1 ]]; then
+# Upstream's default `agentmemory` command is a long-running foreground worker.
+# Always go through our lifecycle wrapper so bootstrap gets its terminal back.
+if [[ "$env_changed" -eq 1 ]] && curl -fsS --max-time 2 "$BASE_URL/agentmemory/livez" >/dev/null 2>&1; then
   echo "Restarting agentmemory so new local defaults take effect..."
-  CI=1 npx -y "$PACKAGE" stop || warn "agentmemory stop returned non-zero; continuing with restart."
-  running=0
-fi
-
-if [[ "$running" -eq 1 ]]; then
-  ok "agentmemory already running at $BASE_URL"
+  bash "$SERVICE_SCRIPT" restart
 else
-  echo "Starting agentmemory in keyless mode..."
-  # CI=1 deliberately skips the upstream first-run provider wizard. Upstream
-  # records keyless defaults, starts the pinned iii engine, and backgrounds it.
-  CI=1 npx -y "$PACKAGE"
+  bash "$SERVICE_SCRIPT" start
 fi
-
-ready=0
-for ((i = 0; i < 30; i++)); do
-  if curl -fsS --max-time 2 "$BASE_URL/agentmemory/livez" >/dev/null 2>&1; then
-    ready=1
-    break
-  fi
-  sleep 1
-done
-
-if [[ "$ready" -ne 1 ]]; then
-  warn "agentmemory did not become healthy at $BASE_URL within 30 seconds."
-  echo "Run: npx -y $PACKAGE doctor" >&2
-  exit 1
-fi
-ok "agentmemory REST/MCP healthy on :3111"
 
 if command -v codex >/dev/null 2>&1; then
   echo "Wiring agentmemory into Codex..."
@@ -114,7 +88,7 @@ fi
 
 cat <<'NEXT'
 
-agentmemory is ready in keyless mode.
+agentmemory is ready in keyless mode and runs detached from this terminal.
 
 No OpenAI/Gemini/Anthropic API key is required.
 Defaults selected by agent-harness when those settings were not already configured:
@@ -126,6 +100,12 @@ Defaults selected by agent-harness when those settings were not already configur
 Local endpoints:
   REST / MCP: http://127.0.0.1:3111
   Viewer:     http://127.0.0.1:3113
+
+Lifecycle:
+  agent-harness memory status
+  agent-harness memory restart
+  agent-harness memory logs
+  agent-harness memory viewer
 
 The first semantic-memory request downloads the local MiniLM model once.
 Restart Codex / Gemini / Antigravity after setup so they reload MCP configuration.

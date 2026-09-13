@@ -42,6 +42,18 @@ test ! -e "$TMP/scripts/agents/agent-memory"
 AGENT_HARNESS_NONINTERACTIVE=1 \
   "$ROOT/bin/agent-harness" ready "$TMP" --core-only --non-interactive >/dev/null
 
+"$ROOT/bin/agent-harness" --help >/dev/null
+"$ROOT/bin/agent-harness" chatgpt-web --help >/dev/null
+"$ROOT/bin/agent-harness" memory --help >/dev/null
 "$ROOT/bin/agent-memory" --help >/dev/null
+
+# Setup must delegate long-running agentmemory to the detached lifecycle helper.
+grep -q 'SERVICE_SCRIPT=.*agentmemory-service.sh' "$ROOT/scripts/setup/install-agentmemory.sh"
+grep -q 'bash "$SERVICE_SCRIPT" start' "$ROOT/scripts/setup/install-agentmemory.sh"
+grep -q 'nohup env CI=1 npx -y "$PACKAGE"' "$ROOT/scripts/setup/agentmemory-service.sh"
+if grep -Eq '^[[:space:]]*CI=1 npx -y "\$PACKAGE"[[:space:]]*$' "$ROOT/scripts/setup/install-agentmemory.sh"; then
+  echo "install-agentmemory.sh must not run the long-lived worker in foreground" >&2
+  exit 1
+fi
 
 echo "Harness smoke test passed."
