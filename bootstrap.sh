@@ -24,12 +24,17 @@ else
   git clone --depth 1 "$REPO_URL" "$INSTALL_DIR"
 fi
 
-# Do not symlink the CLI into ~/.local/bin. The CLI resolves helper paths from
-# BASH_SOURCE, so invoking it through a symlink makes it incorrectly treat
-# ~/.local as the harness root. Install a tiny absolute-path wrapper instead.
+# Do not symlink the CLI into ~/.local/bin. Besides keeping helper paths stable,
+# this wrapper provides the Node-based orchestration command without complicating
+# the existing Bash lifecycle CLI.
 rm -f "$BIN_DIR/agent-harness"
 {
   printf '%s\n' '#!/usr/bin/env bash'
+  printf '%s\n' 'set -euo pipefail'
+  printf '%s\n' 'if [[ "${1:-}" == "orchestrate" ]]; then'
+  printf '%s\n' '  shift'
+  printf '  exec node %q "$@"\n' "$INSTALL_DIR/scripts/orchestrate.mjs"
+  printf '%s\n' 'fi'
   printf 'exec %q "$@"\n' "$INSTALL_DIR/bin/agent-harness"
 } > "$BIN_DIR/agent-harness"
 chmod 0755 "$BIN_DIR/agent-harness"
