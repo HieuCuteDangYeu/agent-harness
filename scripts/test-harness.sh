@@ -26,13 +26,15 @@ test ! -e "$TMP/scripts/agents/agent-memory"
 test ! -e "$TMP/.agent-harness-version"
 test "$("$ROOT/bin/agent-harness" version)" = "$(cat "$ROOT/VERSION")"
 
-# v0.3.x migration: known Tencent-generated files are replaced/removed.
+# v0.3.x migration: known Tencent/generated memory references are replaced/removed.
+printf '%s\n' 'check shared memory when `agent-memory` is available' > "$TMP/AGENTS.md"
 printf '%s\n' 'legacy TencentDB Agent Memory skill' > "$TMP/.agents/skills/shared-memory/SKILL.md"
 printf '%s\n' 'legacy TencentDB Agent Memory orchestrator' > "$TMP/docs/agent-orchestrator.md"
 printf '%s\n' '# TencentDB Agent Memory legacy helper' > "$TMP/scripts/agents/agent-memory"
 "$ROOT/bin/agent-harness" init "$TMP" >"$MIGRATION_LOG"
 grep -q '^MIGRATE ' "$MIGRATION_LOG"
 grep -q '^REMOVE  ' "$MIGRATION_LOG"
+grep -q 'agentmemory' "$TMP/AGENTS.md"
 ! grep -q 'TencentDB Agent Memory' "$TMP/.agents/skills/shared-memory/SKILL.md"
 ! grep -q 'TencentDB Agent Memory' "$TMP/docs/agent-orchestrator.md"
 test ! -e "$TMP/scripts/agents/agent-memory"
