@@ -6,6 +6,8 @@ BASE_URL="${AGENTMEMORY_URL:-http://127.0.0.1:3111}"
 ENV_DIR="$HOME/.agentmemory"
 ENV_FILE="$ENV_DIR/.env"
 
+env_changed=0
+
 warn() { printf 'WARN    %s\n' "$*" >&2; }
 ok() { printf 'OK      %s\n' "$*"; }
 
@@ -38,6 +40,7 @@ ensure_env() {
     ok "$key already configured"
   else
     printf '\n%s=%s\n' "$key" "$value" >> "$ENV_FILE"
+    env_changed=1
     ok "$key=$value"
   fi
 }
@@ -47,7 +50,18 @@ ensure_env() {
 ensure_env EMBEDDING_PROVIDER local
 ensure_env AGENTMEMORY_TOOLS core
 
+running=0
 if curl -fsS --max-time 2 "$BASE_URL/agentmemory/livez" >/dev/null 2>&1; then
+  running=1
+fi
+
+if [[ "$running" -eq 1 && "$env_changed" -eq 1 ]]; then
+  echo "Restarting agentmemory so new local defaults take effect..."
+  CI=1 npx -y "$PACKAGE" stop || warn "agentmemory stop returned non-zero; continuing with restart."
+  running=0
+fi
+
+if [[ "$running" -eq 1 ]]; then
   ok "agentmemory already running at $BASE_URL"
 else
   echo "Starting agentmemory in keyless mode..."
