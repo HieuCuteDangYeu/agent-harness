@@ -50,11 +50,19 @@ AGENT_HARNESS_NONINTERACTIVE=1 \
 # Setup must delegate long-running agentmemory to the detached lifecycle helper.
 grep -q 'SERVICE_SCRIPT=.*agentmemory-service.sh' "$ROOT/scripts/setup/install-agentmemory.sh"
 grep -q 'bash "$SERVICE_SCRIPT" start' "$ROOT/scripts/setup/install-agentmemory.sh"
-grep -q 'nohup env CI=1 npx -y "$PACKAGE"' "$ROOT/scripts/setup/agentmemory-service.sh"
+grep -q 'nohup env CI=1 AGENTMEMORY_DATA_DIR="$DATA_ROOT" npx -y "$PACKAGE"' "$ROOT/scripts/setup/agentmemory-service.sh"
 if grep -Eq '^[[:space:]]*CI=1 npx -y "\$PACKAGE"[[:space:]]*$' "$ROOT/scripts/setup/install-agentmemory.sh"; then
   echo "install-agentmemory.sh must not run the long-lived worker in foreground" >&2
   exit 1
 fi
+
+# Persistent memory must never depend on the repository working directory.
+grep -q 'export AGENTMEMORY_DATA_DIR="$DATA_ROOT"' "$ROOT/scripts/setup/agentmemory-service.sh"
+grep -q 'export AGENTMEMORY_DATA_DIR="$DATA_ROOT"' "$ROOT/scripts/setup/install-agentmemory.sh"
+grep -q 'Legacy repo-local agentmemory data detected' "$ROOT/scripts/setup/install-agentmemory.sh"
+DATA_DIR_OUTPUT="$(HOME="$TMP/home" XDG_DATA_HOME="$TMP/xdg-data" "$ROOT/bin/agent-harness" memory data-dir)"
+test "$DATA_DIR_OUTPUT" = "$TMP/xdg-data/agentmemory"
+test ! -e "$TMP/data"
 
 # The supported bootstrap must install a wrapper, not a symlink. A symlink makes
 # BASH_SOURCE point at ~/.local/bin and breaks helper path resolution.
