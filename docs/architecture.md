@@ -11,6 +11,8 @@ Setup is documented in [First-time setup](first-time-setup.md). Daily operation 
                               ORCHESTRATOR
                    research / architecture / decomposition
                                    │
+                    internal task graph / plan JSON
+                                   │
                         Full Harness connector
                                    ▼
                               local Codex harness
@@ -51,7 +53,24 @@ Setup is documented in [First-time setup](first-time-setup.md). Daily operation 
    durable memory       skill-maintenance
 ```
 
-The intelligent orchestrator decides what work exists and who should own it. The dispatcher is deliberately deterministic: it reads a compact JSON task graph, creates isolated worktrees, schedules dependency-ready nodes, starts the selected CLI, runs declared verification, integrates successful commits, records evidence, and runs the configured final reviewer.
+The intelligent orchestrator decides what work exists and who should own it. The JSON task graph is an internal handoff format; normal users should not have to author it. The dispatcher validates that graph before side effects, then creates isolated worktrees, schedules dependency-ready nodes, starts the selected CLI, runs declared verification, integrates successful commits, records evidence, and runs the configured final reviewer.
+
+## Task authority
+
+A GitHub issue is optional. The active task may come directly from the user request plus the current repository.
+
+Authority for the active task is:
+
+```text
+explicit user/task requirements
+    > current code/tests
+    > supplied GitHub issue/PR requirements
+    > AGENTS.md + repository skills
+    > agentmemory
+    > general research
+```
+
+GitHub remains useful for durable issues, PRs, reviews, CI, and history, but the harness does not require a new issue before orchestration can run.
 
 ## Runtime plugin/extension layer
 
@@ -89,6 +108,7 @@ Codex Web GPT is not a Ponytail-style plugin. It is an optional launcher/model/t
 
 The LLM should not manually juggle terminal sessions or invent ad-hoc coordination. The execution engine owns the mechanical parts:
 
+- plan validation before branches/worktrees/agents are started
 - one worktree per task
 - explicit dependency edges
 - bounded parallelism
@@ -121,7 +141,7 @@ All nodes start from the local integration branch at dispatch time. Independent 
 
 If two parallel nodes conflict during integration, that task is marked failed and dependents are blocked. The dispatcher does not silently ask an LLM to resolve conflicts.
 
-Runtime plans, logs, status, and summaries live under `.git/agent-harness/runs/`; temporary worktrees live outside the repository and are removed after the run unless debugging retention is requested.
+Runtime plans, logs, status, and summaries live under `.git/agent-harness/`; temporary worktrees live outside the repository and are removed after the run unless debugging retention is requested.
 
 ## Runtime ownership
 
@@ -134,9 +154,13 @@ None of these replace Codex itself. Codex remains the local tool surface used by
 
 ## Knowledge and behavior layers
 
-### Git/GitHub — authoritative
+### Current task + Git — authoritative
 
-Current code, tests, issue requirements, reviews, CI, and history.
+Explicit task requirements, current code, tests, and current Git state.
+
+### GitHub — durable collaboration/history when used
+
+Issues, PRs, reviews, CI, and repository history. A new issue is not mandatory.
 
 ### `AGENTS.md` — always-on repository behavior
 

@@ -2,7 +2,7 @@
 
 Use this after [First-time setup](first-time-setup.md) is complete.
 
-## 1. Start your project
+## Start your project
 
 ```bash
 cd ~/Projects/my-project
@@ -13,299 +13,170 @@ codex
 
 `memory start` is safe when memory is already running. Codex Web GPT only needs to stay open while you use a ChatGPT Web model in Codex.
 
-You normally do **not** run Ponytail manually. Once installed/trusted, Codex/Gemini/Antigravity load their Ponytail integration when they start.
+You do not manually run Ponytail for each task. Once installed/trusted, the coding host loads it automatically.
 
-## 2. Choose the right mode
+## Normal usage: just describe the task
 
-### Single-agent task
+You do **not** need to create a GitHub issue or a plan JSON first.
 
-Use Codex directly for small, focused work:
-
-```text
-Implement GitHub issue #142.
-
-Read AGENTS.md and relevant repository skills first.
-Use agentmemory only if previous project history materially helps.
-Treat the issue acceptance criteria as the contract.
-Run the required verification and review the final diff.
-```
-
-You do not need to add `use Ponytail` to every prompt. `AGENTS.md` already tells the agent to follow Ponytail when available.
-
-### Plan only
-
-Ask the ChatGPT Web orchestrator to plan when you do not want code changed yet:
+For substantial work, tell the ChatGPT Web orchestrator what you want:
 
 ```text
-Plan the implementation for this task.
-Read AGENTS.md, docs/agent-orchestrator.md and relevant skills.
-Inspect the current code and tests.
-Use agentmemory selectively if previous project decisions materially help.
-Do not execute the plan.
-```
-
-### Automatic multi-agent implementation
-
-For substantial work, ask the ChatGPT Web model to orchestrate it:
-
-```text
-Implement this task using the repository orchestrator.
-
-Read AGENTS.md, docs/agent-orchestrator.md and relevant repository skills.
-Inspect the current implementation and tests.
-Use agentmemory selectively when history matters.
-
-Create the smallest useful task graph.
-Use Codex as the primary implementation executor.
-Use Gemini only for genuinely independent work, focused tests, UI-oriented work, or independent review.
-Do not make both agents implement the same change.
-
-Dry-run the graph first. If valid, execute it automatically.
-Run deterministic verification and final review.
+Improve the reel recommendation system.
+Use the repository orchestrator and implement it.
 Do not push or merge remotely.
-Report the integration branch, task results, verification results, reviewer verdict, and remaining risks.
 ```
 
-The ChatGPT orchestrator should then invoke `agent-harness orchestrate` through Full Harness.
-
-## 3. How Ponytail and agentmemory apply
-
-The runtime plugins/extensions are host-level integrations, not tasks in the JSON plan.
+The orchestrator should automatically:
 
 ```text
+your request
+    ↓
+inspect repo + AGENTS.md + relevant skills
+    ↓
+selectively recall memory when useful
+    ↓
+create internal task graph
+    ↓
+generate plan JSON internally
+    ↓
 agent-harness orchestrate
-        │
-        ├── launches codex exec
-        │      ├── Ponytail plugin/hooks
-        │      └── agentmemory MCP/hooks
-        │
-        └── launches gemini
-               ├── Ponytail extension
-               └── agentmemory adapter
-```
-
-### Ponytail
-
-Ponytail reinforces minimal/YAGNI implementation behavior inside the coding agent. Once installed and trusted, it applies to:
-
-- interactive Codex sessions
-- Codex `exec` processes launched by the dispatcher
-- Gemini CLI sessions when the extension is installed
-- Antigravity sessions when its plugin is installed
-
-You normally should **not**:
-
-- add a separate orchestration node called `run Ponytail`
-- reinstall it before every task
-- repeat long Ponytail instructions in every executor prompt
-
-The repository contract already says to use Ponytail when available. Safety/correctness requirements still override simplicity.
-
-### agentmemory
-
-agentmemory provides shared local history through MCP/adapters. Keep the service running:
-
-```bash
-agent-harness memory start
-```
-
-Agents should recall history only when useful. Typical tools are `memory_smart_search` / `memory_recall`, with `memory_save` / `memory_lesson_save` reserved for concise durable verified lessons.
-
-Broad automatic context injection stays off by default, so a fresh executor does not receive the entire memory store. It can query the same shared memory service when the task warrants it.
-
-## 4. What happens during automatic execution
-
-```text
-ChatGPT orchestrator
-       │
-       ▼
-JSON task graph
-       │
-       ▼
-dry-run validation
-       │
-       ▼
-agent-harness orchestrate
-       │
- ┌─────┴─────┐
- ▼           ▼
-Codex      Gemini
-worktree   worktree
- └─────┬─────┘
-       ▼
-dependency-aware integration
-       ▼
+    ↓
+Codex / Gemini worktrees
+    ↓
 deterministic verification
-       ▼
-final reviewer
-       ▼
+    ↓
+final review
+    ↓
 local integration branch
 ```
 
-The dispatcher automatically:
+The JSON plan is an internal handoff format. In normal use you should never need to write it yourself.
 
-- validates task IDs, dependencies and cycles
+## Do I need a GitHub issue?
+
+No.
+
+The active task can come directly from your request plus the current repository. If you provide an existing issue or PR, the orchestrator should use it as authoritative task evidence.
+
+Create an issue when you want a durable remote record, team coordination, or cross-session traceability. The harness should not create one automatically just because GitHub is used by the project.
+
+Examples:
+
+```text
+Implement GitHub issue #142 using the repository orchestrator.
+```
+
+or simply:
+
+```text
+Fix reset-token replay in auth-service using the repository orchestrator.
+```
+
+Both are valid.
+
+## Plan only
+
+If you want to review the plan before code changes:
+
+```text
+Plan the implementation for this task using the repository orchestrator.
+Do not execute it yet.
+```
+
+The orchestrator should inspect the repository, produce the task graph, and stop.
+
+If you later approve it:
+
+```text
+Approved. Execute the plan.
+```
+
+The orchestrator should generate the dispatcher plan internally and run it. You still do not need to create JSON yourself.
+
+## Single-agent work
+
+For a small focused task, use Codex directly:
+
+```text
+Fix the validation bug in the current endpoint.
+Read AGENTS.md and relevant repository skills first.
+Use memory only if previous project history materially helps.
+Run targeted verification and review the final diff.
+```
+
+Use multi-agent orchestration only when decomposition provides real value.
+
+## What automatic execution does
+
+The dispatcher:
+
+- validates the generated task graph before creating branches/worktrees or launching agents
 - creates isolated worktrees
-- starts dependency-ready tasks, in parallel when safe
-- launches the assigned `codex` or `gemini` CLI using that host's installed plugin/extension configuration
-- runs each task's declared verification commands itself
+- starts dependency-ready tasks in parallel when safe
+- launches the assigned `codex` or `gemini` CLI with its installed host configuration
+- runs declared verification commands itself
 - commits successful uncommitted executor changes
 - integrates successful commits into a local `agent/orchestrate-*` branch
-- blocks dependent tasks after failures or conflicts
+- blocks dependents after failed tasks or conflicts
 - runs the configured final reviewer
-- records logs/status/summary under `.git/agent-harness/runs/`
-- cleans temporary worktrees unless `--keep-worktrees` is used
+- records evidence under `.git/agent-harness/runs/`
+- removes temporary worktrees unless debugging retention is requested
 
-It does **not** automatically push or merge remote branches.
+It never pushes or merges remote branches automatically.
 
-## 5. Manual dispatcher usage
+Ponytail and agentmemory are host-level integrations, not task nodes. `AGENTS.md` already defines when they should be used.
 
-Print the example plan:
+## Inspect the result
 
-```bash
-agent-harness orchestrate example
-```
-
-Save and validate a plan:
-
-```bash
-agent-harness orchestrate example > /tmp/plan.json
-agent-harness orchestrate /tmp/plan.json --dry-run
-```
-
-Execute it:
-
-```bash
-agent-harness orchestrate /tmp/plan.json
-```
-
-Keep worktrees for debugging:
-
-```bash
-agent-harness orchestrate /tmp/plan.json --keep-worktrees
-```
-
-Override concurrency:
-
-```bash
-agent-harness orchestrate /tmp/plan.json --max-parallel 3
-```
-
-Default parallelism is 2. The maximum is 8.
-
-## 6. Plan shape
-
-A plan is versioned JSON:
-
-```json
-{
-  "version": 1,
-  "name": "example-task",
-  "goal": "Implement the requested behavior safely.",
-  "base": "HEAD",
-  "maxParallel": 2,
-  "tasks": [
-    {
-      "id": "backend",
-      "agent": "codex",
-      "prompt": "Implement the backend behavior.",
-      "dependsOn": [],
-      "acceptanceCriteria": [
-        "Required behavior works",
-        "Existing contracts remain compatible"
-      ],
-      "verify": [
-        "pnpm test --filter backend"
-      ]
-    },
-    {
-      "id": "tests",
-      "agent": "gemini",
-      "prompt": "Add focused regression tests for the integrated backend behavior.",
-      "dependsOn": ["backend"],
-      "acceptanceCriteria": [
-        "Important success and failure paths are covered"
-      ],
-      "verify": [
-        "pnpm test --filter backend"
-      ]
-    }
-  ],
-  "review": {
-    "agent": "codex",
-    "prompt": "Check correctness, architecture, security, compatibility and missing tests."
-  }
-}
-```
-
-Use `dependsOn` only for real ordering. Independent tasks can run concurrently.
-
-Do not put plugin setup into the plan. A task should describe the engineering outcome, not how to bootstrap Ponytail/agentmemory.
-
-## 7. Inspect the result
-
-When the run finishes, the harness prints the integration branch and useful commands.
-
-List generated integration branches:
+The harness prints the generated integration branch. Useful commands are:
 
 ```bash
 git branch --list 'agent/orchestrate/*'
-```
-
-Inspect commits:
-
-```bash
 git log --oneline <base>..agent/orchestrate/<run-branch>
-```
-
-Inspect the complete diff:
-
-```bash
 git diff <base>...agent/orchestrate/<run-branch>
-```
-
-Inspect run evidence:
-
-```bash
 find .git/agent-harness/runs -maxdepth 2 -type f | sort
 ```
 
-A run normally contains:
+Only push or create a PR after reviewing the local integration branch.
 
-```text
-plan.json
-status.json
-summary.json
-<task>.log
-review.log
-```
-
-Only push/create a PR after you have reviewed the local integration branch.
-
-## 8. Failure behavior
-
-If a task fails:
+## Failure behavior
 
 ```text
 failed task
     ↓
-dependent tasks become blocked
+dependent tasks blocked
     ↓
 independent already-running tasks may still finish
 ```
 
-If two successful parallel tasks conflict while being integrated, the conflicting task fails. The harness does not silently ask an LLM to resolve the conflict.
+Merge conflicts fail the affected task rather than being silently resolved by an LLM. If a configured final reviewer does not return `VERDICT: PASS`, the run is not successful.
 
-If a configured final reviewer does not return an explicit `VERDICT: PASS`, the run is not considered successful.
+## Advanced: manual dispatcher usage
 
-## 9. Memory and skills
+Manual JSON is available for debugging, CI experiments, or users who want direct control over the task graph. It is not the normal workflow.
 
-Use memory for history, not as the source of truth.
+```bash
+agent-harness orchestrate example
+agent-harness orchestrate example > /tmp/plan.json
+agent-harness orchestrate /tmp/plan.json --dry-run
+agent-harness orchestrate /tmp/plan.json
+agent-harness orchestrate /tmp/plan.json --keep-worktrees
+agent-harness orchestrate /tmp/plan.json --max-parallel 3
+```
+
+Default parallelism is 2; the maximum is 8.
+
+## Memory and skills
 
 Authority order:
 
 ```text
-current code/tests/GitHub requirements
+explicit task requirements
+        >
+current code/tests
+        >
+supplied GitHub issue/PR requirements
         >
 AGENTS.md + repository skills
         >
@@ -314,20 +185,9 @@ agentmemory
 general research
 ```
 
-After verified work:
+After verified work, save only durable decisions/root causes/outcomes to memory. Run `skill-maintenance` only when a reusable repository workflow or architectural invariant changed. Never store secrets in memory.
 
-- save only durable decisions/root causes/outcomes to memory
-- run `skill-maintenance` only when a reusable repository workflow or architectural invariant changed
-- never store secrets in memory
-
-Remember the distinction:
-
-```text
-Ponytail / agentmemory  = host runtime integrations
-.agents/skills/*        = repository-specific version-controlled knowledge
-```
-
-## 10. Command cheat sheet
+## Command cheat sheet
 
 ```bash
 # health
@@ -349,7 +209,7 @@ agent-harness memory viewer
 agent-harness memory data-dir
 agent-harness memory doctor
 
-# orchestration
+# advanced/manual orchestration
 agent-harness orchestrate example
 agent-harness orchestrate /tmp/plan.json --dry-run
 agent-harness orchestrate /tmp/plan.json

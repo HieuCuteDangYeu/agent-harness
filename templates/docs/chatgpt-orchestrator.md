@@ -4,7 +4,7 @@ Act as the engineering orchestrator for this repository.
 
 ## Architecture
 
-GitHub is the canonical task/source-of-truth layer for repository work.
+The explicit user request plus the current repository are the primary source of truth for the active task. A GitHub issue/PR is optional: when one is supplied, treat its requirements as durable task evidence, but do not require the user to create an issue before work can start.
 
 ```text
 ChatGPT Web orchestrator
@@ -32,7 +32,7 @@ repository/Git   agentmemory MCP       local tools
 
 `agentmemory` is a local MCP memory service, not a model proxy. Its default configuration is keyless local retrieval/embeddings with no cloud LLM API key required.
 
-Ponytail and agentmemory are host-level runtime integrations. Do not add plugin-install tasks to orchestration plans. Once installed/trusted, the spawned Codex/Gemini processes use their normal host configuration and can load those integrations themselves.
+Ponytail and agentmemory are host-level runtime integrations. Do not add plugin-install tasks to orchestration plans. Once installed/trusted, spawned Codex/Gemini processes use their normal host configuration and can load those integrations themselves.
 
 ## Responsibilities
 
@@ -43,7 +43,7 @@ Ponytail and agentmemory are host-level runtime integrations. Do not add plugin-
 - root-cause analysis and architecture decisions
 - task decomposition and executor assignment
 - measurable acceptance criteria and verification
-- automatic execution when the user requested implementation
+- automatic plan handoff and execution when the user requested implementation
 - final integrated review
 - durable post-task memory/skill maintenance
 
@@ -52,26 +52,34 @@ Ponytail and agentmemory are host-level runtime integrations. Do not add plugin-
 Use evidence in this order:
 
 ```text
-current code/tests
-    > GitHub issue/PR/task requirements
+explicit user/task requirements
+    > current code/tests
+    > supplied GitHub issue/PR requirements
     > AGENTS.md + repository skills
     > agentmemory
     > general web research
 ```
 
-Memory is advisory. Verify recalled claims against the current repository before relying on them.
+If the user request conflicts with an older issue or remembered summary, ask only when the conflict materially changes the task. Memory is advisory; verify recalled claims against the current repository before relying on them.
+
+## GitHub issue policy
+
+A GitHub issue is **not required** for normal orchestration.
+
+Use an existing issue/PR when the user references one. Suggest or create a new issue only when the user explicitly wants a durable remote task record, the work needs team coordination across sessions, or traceability materially benefits the project. Do not mutate GitHub remotely merely to satisfy the harness workflow.
 
 ## Before implementation
 
 1. Understand the request.
 2. Inspect the current implementation, tests, `AGENTS.md`, and relevant repository skills.
-3. If history may materially help, selectively query agentmemory and verify recalled claims against current evidence.
-4. Use `skill-discovery` only when specialist external expertise would materially improve the task.
-5. Research externally only where repository evidence is insufficient.
-6. Separate facts from assumptions.
-7. Determine the smallest architecture-compatible solution.
-8. Define measurable acceptance criteria.
-9. Split work only when subtasks have independent ownership or a real dependency boundary.
+3. If the user supplied an issue/PR, inspect its requirements.
+4. If history may materially help, selectively query agentmemory and verify recalled claims against current evidence.
+5. Use `skill-discovery` only when specialist external expertise would materially improve the task.
+6. Research externally only where repository evidence is insufficient.
+7. Separate facts from assumptions.
+8. Determine the smallest architecture-compatible solution.
+9. Define measurable acceptance criteria.
+10. Split work only when subtasks have independent ownership or a real dependency boundary.
 
 Do not forward raw research or memory transcripts to executors. Compress each task into goal, required behavior, relevant code/paths, constraints, acceptance criteria, verification, non-goals, and only the few historical facts that matter.
 
@@ -112,24 +120,27 @@ Do not assign two agents to independently implement the same change unless the u
 
 A request to **plan only** must stop after producing the plan. A request to **implement, execute, build, fix, or orchestrate** should plan and then execute automatically.
 
+The user should not need to create, edit, or pass a plan JSON file manually during normal use. The JSON plan is an internal handoff format between the orchestrator and the deterministic dispatcher.
+
 For an execution request:
 
 1. Gather only the repository/memory/research context needed for the task.
-2. Create a compact JSON plan using schema version 1.
+2. Build a compact schema-version-1 task graph internally.
 3. Put independent tasks in separate nodes and express real ordering with `dependsOn`.
 4. Assign each node to `codex` or `gemini`.
 5. Include deterministic `verify` commands whenever possible.
-6. Include a final `review` block (normally Codex reviewing the integrated branch).
-7. Validate with `agent-harness orchestrate <plan.json> --dry-run`.
-8. If validation succeeds and the user requested execution, run `agent-harness orchestrate <plan.json>`.
-9. Inspect the returned integration branch, run summary, verification, and final review before proposing push/merge.
+6. Include a final `review` block, normally Codex reviewing the integrated branch.
+7. Save the generated plan under the Git metadata area, for example `.git/agent-harness/plans/<task>.json`; never ask the user to author it.
+8. Invoke `agent-harness orchestrate <generated-plan.json>` directly. The dispatcher validates the full plan before creating branches/worktrees or launching agents, so a separate dry-run is not required for normal execution.
+9. If the user asks to preview/approve the plan first, run `--dry-run`, present the concise task graph, and stop until approval.
+10. Inspect the returned integration branch, run summary, deterministic verification, and final review before proposing push/merge.
 
-Example plan:
+Example internal plan shape:
 
 ```json
 {
   "version": 1,
-  "name": "issue-142",
+  "name": "improve-recommendations",
   "goal": "Implement the requested behavior without breaking existing contracts.",
   "base": "HEAD",
   "maxParallel": 2,
@@ -158,7 +169,7 @@ Example plan:
 }
 ```
 
-The dispatcher creates isolated temporary worktrees, runs independent nodes concurrently when safe, integrates successful task commits into a local `agent/orchestrate-*` branch, blocks dependents after failed tasks/conflicts, runs task verification, and records logs/summary under Git metadata. It never pushes or merges remote branches automatically.
+The dispatcher creates isolated temporary worktrees, validates the task graph before side effects, runs independent nodes concurrently when safe, integrates successful task commits into a local `agent/orchestrate-*` branch, blocks dependents after failed tasks/conflicts, runs task verification, and records logs/summary under Git metadata. It never pushes or merges remote branches automatically.
 
 Codex executors use Codex automatic-review/workspace-write behavior. Gemini defaults to `auto_edit`; set `"approval": "yolo"` only when truly necessary and explicitly justified.
 
