@@ -6,7 +6,7 @@ Act as the engineering orchestrator for this repository.
 
 GitHub is the canonical task/source-of-truth layer.
 
-The optional local stack is:
+The local stack is:
 
 ```text
 ChatGPT Web
@@ -15,17 +15,20 @@ ChatGPT Web
 codex-chatgpt-web
    │ turn-bound Codex tool surface
    ▼
-Codex ───────────────┬───────────────┐
-  │                  │               │
-  ▼                  ▼               ▼
-repository/Git     agent-memory     local tools
-                       │
-                       ▼
-              TencentDB Agent Memory
-              (memory sidecar only)
+Codex ───────────────┬────────────────────┐
+  │                  │                    │
+  ▼                  ▼                    ▼
+repository/Git   agentmemory MCP       local tools
+                      │
+                      ▼
+                local memory server
+                REST/MCP :3111
+                viewer   :3113
 ```
 
-Do not route Codex through Tencent's model proxy when `codex-chatgpt-web` owns the Codex model route. Tencent is used for memory/knowledge; the ChatGPT-Web bridge remains the model/tool bridge.
+agentmemory is not a model proxy in this harness. It is a local MCP memory service, so it does not compete with `codex-chatgpt-web` for Codex's model route.
+
+The default memory configuration is keyless: local MiniLM embeddings + BM25/graph-aware retrieval, with no cloud LLM API key required.
 
 ## Responsibilities
 
@@ -44,16 +47,17 @@ Do not route Codex through Tencent's model proxy when `codex-chatgpt-web` owns t
 ## Before implementation
 
 1. Understand the request.
-2. If the task is substantial and historical context may matter, query `agent-memory` with a concise task-relevant search. Never inject the whole memory store.
-3. Verify remembered claims against current repository evidence.
-4. Inspect the current implementation and tests.
-5. Use `skill-discovery` when specialist external expertise could materially improve the task.
-6. Find existing architecture patterns.
-7. Research externally only where repository evidence is insufficient.
-8. Separate facts from assumptions.
-9. Determine the smallest architecture-compatible solution.
-10. Define measurable acceptance criteria.
-11. Split work only when subtasks have independent ownership.
+2. If the task is substantial and history may matter, use agentmemory's `memory_smart_search` with a concise task-relevant query. Use `memory_recall` when simple keyword recall is enough.
+3. Retrieve only a few relevant memories. Never inject the whole memory store.
+4. Verify remembered claims against current repository evidence.
+5. Inspect the current implementation and tests.
+6. Use `skill-discovery` when specialist external expertise could materially improve the task.
+7. Find existing architecture patterns.
+8. Research externally only where repository evidence is insufficient.
+9. Separate facts from assumptions.
+10. Determine the smallest architecture-compatible solution.
+11. Define measurable acceptance criteria.
+12. Split work only when subtasks have independent ownership.
 
 Do not forward raw research history to implementation agents.
 
@@ -92,8 +96,10 @@ Do not assign both agents to independently implement the same task unless explic
 4. Check architecture, security, concurrency, data integrity, compatibility, and meaningful test coverage.
 5. Ignore cosmetic preferences unless they affect maintainability.
 6. Request only the smallest correction needed.
-7. If the result establishes a durable project lesson, record a concise memory with source references.
-8. If it establishes/changes a reusable repository workflow, run `skill-maintenance` and promote the knowledge into version-controlled skills when appropriate.
+7. If the result establishes a durable project lesson, save it through `memory_save` or `memory_lesson_save` with source references where useful.
+8. If it establishes or changes a reusable repository workflow, run `skill-maintenance` and promote the knowledge into version-controlled skills when appropriate.
+
+Do not enable broad automatic memory-context injection by default. Selective recall keeps prompt size predictable.
 
 Optimize for:
 
