@@ -1,88 +1,174 @@
-# Plugins and connectors
+# Runtime plugins and extensions
 
-`agent-harness` can work alongside ChatGPT plugins/connectors, but it does not install or require them.
+In this repository, **plugin** means the coding-agent plugins/extensions that the harness installs into Codex, Gemini CLI, or Antigravity. It does **not** mean ChatGPT app connectors such as Drive/Figma/Neon.
 
-Use plugins when they provide authoritative context or an action the orchestrator needs before it creates the local execution plan.
+The two runtime integrations that matter to normal harness usage are:
 
-## Where plugins fit
+| Integration | Where it runs | What it adds |
+|---|---|---|
+| Ponytail | Codex plugin, Gemini extension, Antigravity plugin | YAGNI/minimal-change guidance and lifecycle hooks |
+| agentmemory | Codex plugin + MCP/hooks; Gemini/Antigravity adapters | Shared local engineering memory with selective recall/save tools |
+
+`Codex Web GPT` is separate: it is a launcher/model/tool bridge used when you want a ChatGPT Web model to act as the orchestrator.
+
+## Ponytail
+
+The bootstrap installs Ponytail into every supported coding host it detects.
+
+Codex installation performed by the harness:
+
+```bash
+codex plugin marketplace add DietrichGebert/ponytail
+codex plugin add ponytail@ponytail
+```
+
+Gemini CLI:
+
+```bash
+gemini extensions install https://github.com/DietrichGebert/ponytail
+```
+
+Antigravity:
+
+```bash
+agy plugin install https://github.com/DietrichGebert/ponytail
+```
+
+### How Ponytail applies to your tasks
+
+You do **not** manually call Ponytail before every task.
+
+After installation/trust, the host loads it when that coding agent starts:
 
 ```text
-project request
-     │
-     ▼
-ChatGPT orchestrator
-     │
-     ├── GitHub / Drive / Figma / Neon / other connected plugins
-     ├── repository + Git history
-     ├── agentmemory
-     └── external research when necessary
-              │
-              ▼
-       compact task graph
-              │
-              ▼
+interactive Codex task
+        ↓
+Codex loads Ponytail
+        ↓
+agent follows repo instructions + Ponytail simplicity guidance
+```
+
+The same is true for headless executor processes started by the automatic dispatcher:
+
+```text
 agent-harness orchestrate
-     ├── Codex executor
-     └── Gemini executor
+        ↓
+   codex exec / gemini
+        ↓
+host plugin/extension configuration loads
+        ↓
+Ponytail applies inside that executor process
 ```
 
-Plugins belong primarily to the **orchestration/context layer**. A spawned Codex or Gemini CLI process does not automatically inherit the ChatGPT plugin's authentication or tools.
+`AGENTS.md` already tells agents to follow Ponytail when it is available, so normal task prompts do not need to repeat `use Ponytail` every time.
 
-The orchestrator should therefore pass only the task-relevant facts, IDs, paths, constraints, and acceptance criteria into executor prompts instead of copying entire plugin responses.
+Ponytail is guidance, not authority. It must never simplify away authentication, authorization, validation, transactions, idempotency, concurrency protection, data integrity, error handling, security, or accessibility requirements.
 
-## Useful plugin roles
+### One-time Ponytail step
 
-| Plugin | Best use in the harness |
-|---|---|
-| GitHub | repository state, issues, PRs, reviews, CI, commits, merge evidence |
-| Google Drive | requirements, specifications, meeting notes, reports, shared project documents |
-| Figma | design inspection, components, layout constraints, design-to-code context |
-| Neon | PostgreSQL projects/branches, schema/runtime inspection, database operations when explicitly needed |
-| OpenAI Platform | API-key/project setup for code that uses the OpenAI API; not required for ChatGPT Web models or keyless agentmemory |
-| Files | project uploads and prior files available in ChatGPT |
+For Codex, launch `codex`, open `/hooks`, review the Ponytail lifecycle hooks, trust only what you accept, then start a new thread/restart Codex.
 
-Available plugins can change by account and environment. Treat this table as examples, not a hard dependency list.
+For Gemini/Antigravity, restart the host after installing the extension/plugin so the active session reloads it.
 
-## Selection rules
+## agentmemory
 
-Use the narrowest authoritative source for the task:
+The harness also installs/wires agentmemory into detected coding hosts.
+
+For Codex it attempts:
+
+```bash
+codex plugin marketplace add rohitg00/agentmemory
+codex plugin add agentmemory@agentmemory
+npx -y @agentmemory/agentmemory@latest connect codex --with-hooks
+```
+
+Gemini and Antigravity use the upstream adapters:
+
+```bash
+npx -y @agentmemory/agentmemory@latest connect gemini-cli
+npx -y @agentmemory/agentmemory@latest connect antigravity
+```
+
+The local service is managed by the harness:
+
+```bash
+agent-harness memory start
+agent-harness memory status
+agent-harness memory logs
+agent-harness memory viewer
+```
+
+### How agentmemory applies to your tasks
+
+agentmemory is **available** to connected agents, but broad context injection is intentionally disabled.
+
+Normal behavior is:
 
 ```text
-current code/tests
-    > repository/GitHub task requirements
-    > connected source documents/design/database state
-    > repository skills
-    > agentmemory
-    > general web research
+agent receives task
+      ↓
+reads AGENTS.md + relevant skills
+      ↓
+asks memory only if prior project history can materially help
+      ↓
+memory_smart_search / memory_recall
+      ↓
+verifies recalled facts against current code/tests
 ```
 
-Examples:
+After verified work, an agent may save a concise durable lesson with `memory_save` or `memory_lesson_save` when future work is likely to benefit.
 
-- An implementation request tied to GitHub issue `#142` → read the issue and current repository first.
-- A UI task tied to a Figma design → inspect the relevant Figma screen/component, then inspect the repository design system.
-- A backend task based on a product specification in Drive → retrieve only that specification and extract concrete requirements.
-- A database incident in Neon → inspect the relevant project/branch/log/schema only when the task actually requires live database evidence.
+Do not use memory as a transcript store. Do not save secrets. Current code/tests/task requirements always override remembered summaries.
 
-Do not query every connected plugin for every task.
+### Automatic orchestration and memory
 
-## Security boundaries
+Each Codex/Gemini executor launched by `agent-harness orchestrate` is a fresh CLI process. Because agentmemory is configured at the host level, that process can access the same shared memory service when its adapter/MCP is loaded.
 
-- Never put passwords, API keys, access tokens, or raw secrets into orchestration plans or agentmemory.
-- Do not give executors broader plugin-derived data than the task needs.
-- Treat live database writes and external-service mutations as higher-risk actions; perform them only when explicitly required and authorized.
-- Repository code/tests remain authoritative for what the current implementation actually does.
-- Plugin content can become stale; verify time-sensitive requirements/state before implementation.
+The orchestrator does not need to copy the full memory history into every task. It should either:
 
-## GitHub after an orchestration run
+- let an executor recall history itself when the task warrants it, or
+- include only a few confirmed historical facts in the task packet when they are essential to the assignment.
 
-The dispatcher intentionally stops at a local integration branch. It does not push or merge remotely.
+## What is not a plugin
 
-After reviewing the result, GitHub can be used to:
+These are related harness components but have different roles:
 
-1. push/create the working branch through the normal user-approved workflow
-2. create or inspect the PR
-3. inspect GitHub Actions
-4. review comments/checks
-5. merge only after the user approves the result
+- `AGENTS.md` — always-on repository instructions
+- `.agents/skills/*` — version-controlled skills/invariants loaded when relevant
+- `skill-discovery` — finds external specialist Agent Skills; it is not Ponytail
+- `repo-skill-bootstrap` — proposes repository-specific skills
+- `skill-maintenance` — keeps repository skills accurate
+- `Codex Web GPT` — optional ChatGPT Web model/tool bridge
+- `agent-harness orchestrate` — deterministic task scheduler/dispatcher
 
-This keeps local autonomous implementation separate from remote repository changes.
+Think of the layers like this:
+
+```text
+AGENTS.md + relevant skills
+          │
+          ▼
+Codex / Gemini executor
+  ├── Ponytail       → implementation discipline
+  └── agentmemory    → selective shared history
+          │
+          ▼
+repository changes + verification
+```
+
+## Normal usage checklist
+
+Once setup is complete, you normally only need:
+
+```bash
+agent-harness memory start
+agent-harness chatgpt-web open   # only if using a ChatGPT Web orchestrator
+codex
+```
+
+Then ask for the task normally. Ponytail and agentmemory are supporting runtime integrations; they should not turn every prompt into setup instructions.
+
+If a plugin appears missing, rerun the normal bootstrap instead of manually maintaining separate install steps:
+
+```bash
+bash <(curl -fsSL https://raw.githubusercontent.com/HieuCuteDangYeu/agent-harness/main/bootstrap.sh)
+```
