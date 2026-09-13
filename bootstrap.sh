@@ -51,6 +51,7 @@ ORCHESTRATOR_FILE="$TARGET/docs/agent-orchestrator.md"
 OLD_ORCHESTRATOR_BLOBS=(
   "25d3eac348f367c261a74cb381a276afe9066694" # v0.4.x
   "5c5a38f6a330c1ac22055ab2c5bc37a92450e2b1" # v0.5.0
+  "3727166cebee784d9b50ce679ee9a7fc0f059a7a" # v0.5.1
 )
 if [[ -f "$ORCHESTRATOR_FILE" ]]; then
   current_blob="$(git hash-object "$ORCHESTRATOR_FILE" 2>/dev/null || true)"
