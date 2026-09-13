@@ -3,12 +3,6 @@ set -euo pipefail
 
 URL="https://github.com/miuuyy/codex-chatgpt-web/releases/latest/download/install-launcher.sh"
 
-if command -v codex-chatgpt-web >/dev/null 2>&1; then
-  echo "codex-chatgpt-web CLI already exists: $(command -v codex-chatgpt-web)"
-  echo "Run the launcher/upstream installer again manually if you want to force an update."
-  exit 0
-fi
-
 command -v curl >/dev/null 2>&1 || {
   echo "curl is required to download the upstream installer." >&2
   exit 127
@@ -25,14 +19,26 @@ if command -v sha256sum >/dev/null 2>&1; then
   echo "Local installer SHA-256: $(sha256sum "$TMP" | awk '{print $1}')"
 fi
 
-echo "Executing the upstream codex-chatgpt-web launcher installer..."
-sh "$TMP"
+echo "Executing the official upstream Codex Web GPT launcher installer..."
+if ! sh "$TMP"; then
+  cat >&2 <<'ERR'
+Codex Web GPT installation/update failed.
+If the launcher is currently running, quit it fully and retry:
+  agent-harness chatgpt-web repair
+ERR
+  exit 1
+fi
 
 cat <<'NEXT'
 Machine-side install finished.
 
+Launcher lifecycle:
+  agent-harness chatgpt-web status
+  agent-harness chatgpt-web open
+  agent-harness chatgpt-web repair
+
 One-time UI setup remains intentionally manual:
-1. Open the codex-chatgpt-web launcher.
+1. Open Codex Web GPT.
 2. Sign in inside its embedded ChatGPT browser.
 3. Run the browser smoke test.
 4. Install the ChatGPT Web models into Codex.
