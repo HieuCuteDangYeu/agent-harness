@@ -1,6 +1,6 @@
 # agent-harness
 
-A reusable coding harness for ChatGPT Web, Codex, Antigravity/Gemini, Agent Skills, GitHub, Ponytail, and persistent local memory.
+A reusable coding harness for ChatGPT Web, Codex, Gemini/Antigravity, Agent Skills, GitHub, Ponytail, persistent local memory, and automatic multi-agent execution.
 
 > **Enter a Git project, run one setup command, finish the guided UI steps, then start coding.**
 
@@ -16,27 +16,29 @@ A reusable coding harness for ChatGPT Web, Codex, Antigravity/Gemini, Agent Skil
 | Ponytail | YAGNI/minimal-change guidance |
 | Codex Web GPT | Uses your signed-in ChatGPT Web subscription as Codex models |
 | `agentmemory` | Persistent local memory shared through MCP |
+| `agent-harness orchestrate` | Dispatches Codex/Gemini tasks, schedules dependencies, integrates results, verifies, and reviews |
 | GitHub Issue/PR templates | Compact implementation and review contracts |
-| Worktree helper | Isolated worktrees for parallel agents |
+| Worktree helper | Isolated worktrees for manual parallel-agent work |
 
-`agentmemory` defaults to keyless local operation: BM25 recall, local MiniLM embeddings, the lean 8-tool MCP surface, no automatic LLM compression, and no broad automatic context injection. No OpenAI/Gemini/Anthropic API key is required. Persistent memory data is stored outside project repositories (`$XDG_DATA_HOME/agentmemory` or `~/.local/share/agentmemory` on Linux), so it does not pollute Git working trees.
+`agentmemory` defaults to keyless local operation: BM25 recall, local MiniLM embeddings, the lean MCP surface, no automatic LLM compression, and no broad automatic context injection. Persistent data lives outside project repositories (`$XDG_DATA_HOME/agentmemory` or `~/.local/share/agentmemory` on Linux).
 
 ## Prerequisites
 
-Install these first:
+Install:
 
 - Git
 - Bash
 - curl
 - Node.js **20+** with npm/npx
 - Codex CLI
-- Antigravity/Gemini CLI only if you also use it
+- Gemini CLI if you want automatic Gemini-role execution
+- Antigravity only if you also use its interactive IDE workflow
 
 Docker is not required for the default memory setup.
 
 ## Setup — one supported command
 
-Run this inside the Git repository you want to prepare:
+Run inside the Git repository you want to prepare:
 
 ```bash
 bash <(curl -fsSL https://raw.githubusercontent.com/HieuCuteDangYeu/agent-harness/main/bootstrap.sh)
@@ -50,48 +52,15 @@ Set up/open the Codex Web GPT launcher?                    Y
 Set up keyless local agentmemory (no API key)?             Y
 ```
 
-The harness then:
-
-1. installs/updates itself
-2. adds repository rules, skills, GitHub templates, and the worktree helper
-3. installs Ponytail for detected agents
-4. installs or opens Codex Web GPT
-5. starts `agentmemory` **detached**, so setup returns your terminal
-6. keeps agentmemory persistence outside the current Git repository
-7. enables local semantic embeddings + the lean MCP tool surface
-8. wires agentmemory into Codex/Gemini/Antigravity when detected
-9. runs readiness checks
+The harness installs/updates itself, adds repository rules/skills/templates, configures the local integrations, keeps memory persistence outside the repository, and runs readiness checks.
 
 ## Finish the one-time UI setup
 
-### 1. Trust Codex hooks
+Launch `codex` once and review/trust only the Ponytail/agentmemory hooks you accept, then restart Codex.
 
-Launch Codex once:
-
-```bash
-codex
-```
-
-Review the **Hooks need review** prompt for Ponytail/agentmemory, trust only the hooks you accept, then restart Codex.
-
-### 2. Finish Codex Web GPT setup
-
-Keep **Codex Web GPT running whenever you use a ChatGPT Web model inside Codex**.
-
-In the launcher:
-
-1. sign in to ChatGPT in its embedded browser
-2. run the browser smoke test
-3. install the ChatGPT Web models into Codex
-4. enable **Full Harness** on the MCP page
-5. follow the launcher instructions to create the ChatGPT Developer Mode connector (currently `Codex Native2`)
-6. restart Codex
-
-Full Harness exposes the current Codex tool surface to ChatGPT Web, including agentmemory MCP tools.
+For Codex Web GPT, keep the launcher running whenever you use a ChatGPT Web model inside Codex. Sign in to ChatGPT in the embedded browser, run its smoke test, install the Web models, enable Full Harness, configure the requested Developer Mode connector, and restart Codex.
 
 ## Verify
-
-Run:
 
 ```bash
 agent-harness doctor .
@@ -101,26 +70,18 @@ agent-harness memory data-dir
 agent-harness version
 ```
 
-Expected local endpoints:
+Expected memory endpoints:
 
 ```text
-agentmemory REST/MCP  http://127.0.0.1:3111
-agentmemory viewer    http://127.0.0.1:3113
+REST/MCP  http://127.0.0.1:3111
+viewer    http://127.0.0.1:3113
 ```
 
-On Linux the default persistent memory path is:
-
-```text
-~/.local/share/agentmemory
-```
-
-The runtime PID/log files are separate under `~/.local/state/agent-harness/agentmemory`.
+On Linux the default persistent memory path is `~/.local/share/agentmemory`; lifecycle PID/log state is separate under `~/.local/state/agent-harness/agentmemory`.
 
 ## Lifecycle commands
 
-You should not need raw installer commands after setup.
-
-For Codex Web GPT:
+Codex Web GPT:
 
 ```bash
 agent-harness chatgpt-web status
@@ -128,10 +89,7 @@ agent-harness chatgpt-web open
 agent-harness chatgpt-web repair
 ```
 
-- `open` reopens the existing launcher without reinstalling it.
-- `repair` reruns the official upstream launcher installer. Quit Codex Web GPT first.
-
-For agentmemory:
+agentmemory:
 
 ```bash
 agent-harness memory status
@@ -145,25 +103,77 @@ agent-harness memory doctor
 agent-harness memory upgrade
 ```
 
-The harness starts agentmemory in the background and writes its runtime log to:
+If an old agentmemory run left `./data/state_store.db` or `./data/iii-config.yaml`, inspect/migrate it before deleting it. New harness-managed runs explicitly use the global data directory.
+
+## Automatic multi-agent orchestration
+
+The v0.5 dispatcher turns the orchestrator's assignments into actual local agent runs:
 
 ```text
-~/.local/state/agent-harness/agentmemory/service.log
+ChatGPT Web orchestrator
+        ↓
+JSON task graph
+        ↓
+agent-harness orchestrate
+        ↓
+ ┌─────────────┬─────────────┐
+ ↓             ↓             │
+Codex A      Gemini B        │ independent tasks can run concurrently
+ └──────┬──────┘             │
+        ↓ dependencies       │
+      Codex C                │
+        ↓                    │
+ deterministic verification │
+        ↓                    │
+ integration branch ◀────────┘
+        ↓
+ final reviewer
 ```
 
-If an old agentmemory run left `./data/state_store.db` or `./data/iii-config.yaml` inside a project, the harness will warn about it but will not delete or move it automatically. Inspect/migrate that legacy data before removing it. New harness-managed runs explicitly use the global data directory instead.
+Get the schema/example:
 
-If you ever see the agentmemory ready panel followed by no shell prompt during bootstrap, that is the old foreground-start behavior from v0.4.0. Press `Ctrl+C`, rerun the one supported bootstrap command above, and v0.4.1+ will start it detached.
+```bash
+agent-harness orchestrate example
+```
+
+Validate a plan without executing anything:
+
+```bash
+agent-harness orchestrate /tmp/plan.json --dry-run
+```
+
+Execute it:
+
+```bash
+agent-harness orchestrate /tmp/plan.json
+```
+
+A plan contains `goal`, `tasks`, real `dependsOn` edges, executor assignment (`codex` or `gemini`), acceptance criteria, deterministic `verify` commands, and an optional final `review` block. Default concurrency is 2 and can be raised to 8.
+
+The dispatcher:
+
+- creates an isolated local integration branch (`agent/orchestrate-*`)
+- creates a temporary worktree for each task
+- starts independent tasks concurrently
+- waits for dependencies before starting downstream work
+- uses Codex `exec --approve-for-me` for Codex tasks
+- uses Gemini `auto_edit` by default; `"approval": "yolo"` is explicit opt-in
+- runs the declared verification commands itself
+- commits uncommitted successful task changes and integrates them
+- blocks dependent work after failures or merge conflicts
+- runs the configured final reviewer and honors `VERDICT: BLOCK`
+- stores plan/logs/status/summary under `.git/agent-harness/runs/...`, so runtime state does not pollute the working tree
+- never pushes or merges a remote branch automatically
+
+At completion it prints the integration branch plus exact `git diff`, `git log`, and optional `git push` commands.
+
+### Using it from the ChatGPT Web orchestrator
+
+A **plan-only** request should stop after planning. When you ask to **implement, execute, fix, build, or orchestrate**, the ChatGPT Web orchestrator should generate the compact JSON task graph, dry-run validate it, then invoke `agent-harness orchestrate` through Full Harness. The repository template at `docs/agent-orchestrator.md` contains this protocol.
 
 ## First use in a repository
 
-Start Codex:
-
-```bash
-codex
-```
-
-Then run this once:
+Start Codex and bootstrap repository-specific knowledge once:
 
 ```text
 Use repo-skill-bootstrap to analyze this repository.
@@ -179,33 +189,20 @@ Return the proposed repository-specific skill inventory with:
 Do not propose generic technology skills.
 ```
 
-Approve only useful project-specific skills, then have the agent create them under `.agents/skills/`.
+Approve only useful repository-specific skills, then have the agent create them under `.agents/skills/`.
 
 ## Daily use
 
-Normally:
+For a normal single-agent task:
 
 ```bash
 cd ~/Projects/my-project
 codex
 ```
 
-For implementation work:
+For a substantial execution request, ask the ChatGPT Web orchestrator to implement/orchestrate it; it can dispatch the resulting task graph automatically.
 
-```text
-Implement GitHub issue #142.
-
-Read AGENTS.md and relevant repository skills first.
-Use Ponytail full when available.
-Use agentmemory recall only if historical context can materially help.
-Use skill-discovery if specialist external expertise would improve the task.
-Treat the issue acceptance criteria as the contract.
-Run the specified verification and review the final diff before completion.
-```
-
-Agents should use `memory_smart_search` / `memory_recall` selectively and save only durable verified lessons with `memory_save` / `memory_lesson_save`.
-
-Authority remains:
+Agents should recall memory selectively and save only durable verified lessons. Authority remains:
 
 ```text
 current code/tests/GitHub
@@ -232,6 +229,6 @@ project/
 └── scripts/agents/create-worktree.sh
 ```
 
-The installer is non-destructive except for recognized obsolete harness-generated Tencent memory files, which are migrated/removed automatically.
+The installer is non-destructive except for recognized obsolete harness-generated files. An exact unmodified v0.4 orchestrator document is automatically migrated to the v0.5 dispatch protocol; user-edited copies are left untouched.
 
-For the same setup flow with troubleshooting detail, see [docs/one-command-setup.md](docs/one-command-setup.md). For design rationale only, see [docs/architecture.md](docs/architecture.md).
+For detailed onboarding/troubleshooting, see [docs/one-command-setup.md](docs/one-command-setup.md). For design rationale, see [docs/architecture.md](docs/architecture.md).
