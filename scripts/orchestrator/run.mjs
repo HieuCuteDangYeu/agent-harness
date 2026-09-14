@@ -43,7 +43,8 @@ export async function run(argv) {
   const commonDir = git(['-C', repoRoot, 'rev-parse', '--git-common-dir']).stdout;
   const commonGitDir = path.resolve(repoRoot, commonDir);
   const stamp = new Date().toISOString().replace(/[-:TZ.]/g, '').slice(0, 14);
-  const runId = `${sanitize(plan.name || 'run')}-${stamp}-${Math.random().toString(36).slice(2, 6)}`;
+  const generatedRunId = `${sanitize(plan.name || 'run')}-${stamp}-${Math.random().toString(36).slice(2, 6)}`;
+  const runId = process.env.AGENT_HARNESS_RUN_ID || generatedRunId;
   const stateRoot = path.join(commonGitDir, 'agent-harness', 'runs', runId);
   mkdirSync(stateRoot, { recursive: true });
   writeFileSync(path.join(stateRoot, 'plan.json'), `${JSON.stringify(plan, null, 2)}\n`, 'utf8');
