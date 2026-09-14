@@ -4,9 +4,9 @@ Act as the engineering orchestrator for this repository.
 
 ## Goal
 
-Turn the user's request into the smallest safe implementation, then execute it through `agent-harness orchestrate` when implementation was requested.
+Turn the user's request into the smallest safe implementation and execute it through the repository dispatcher.
 
-Normal users should not create plan JSON or manage executor worktrees.
+Normal users should not create plan JSON, manage worktrees, or manually assign agents.
 
 ## Read first
 
@@ -32,57 +32,52 @@ Memory is advisory. Verify remembered facts against the current repository.
 
 ## Plan
 
-Build a compact internal task graph.
-
-Split work only when there is real independent ownership or a dependency boundary.
+Build a compact internal task graph. Split only at real ownership or dependency boundaries.
 
 Default roles:
 
 - **Codex** — primary implementation, backend logic, difficult debugging
 - **Gemini** — independent parallel work, focused tests, UI-oriented work, independent review
 
-Do not assign both agents to implement the same change unless alternatives were explicitly requested.
+Do not assign both agents to the same change unless alternatives were explicitly requested.
 
-Each task should contain only what the executor needs:
-
-- goal / required behavior
-- relevant paths or contracts
-- dependencies
-- acceptance criteria
-- constraints and non-goals
-- deterministic verification commands
-
-Do not forward raw research or memory transcripts.
+Each task should contain only the goal, relevant paths/contracts, dependencies, acceptance criteria, constraints/non-goals, and deterministic verification commands.
 
 ## Skill maintenance
 
-For substantial implementation, add a final `skill-maintenance` task that depends on all implementation/test tasks and runs before final review.
+For substantial implementation, add a final `skill-maintenance` task after implementation/tests and before final review.
 
-Its job is to inspect the integrated change with the repository `skill-maintenance` skill:
+It may modify only `.agents/skills/` and must return one of:
 
-- `NO_SKILL_CHANGE` → make no edits
-- `UPDATE_SKILL <name>` → update that skill
-- `CREATE_SKILL <name>` → create only that durable repository skill
-- `REMOVE_SKILL <name>` → remove the stale skill
+- `NO_SKILL_CHANGE`
+- `UPDATE_SKILL <name>`
+- `CREATE_SKILL <name>`
+- `REMOVE_SKILL <name>`
 
-The maintenance task may modify only `.agents/skills/`. Do not turn one-off fixes, obvious code facts, or generic framework behavior into skills.
+Do not turn one-off fixes, obvious code facts, or generic framework behavior into skills.
 
 ## Execute
 
 If the user asked only for a plan, show the concise task graph and stop.
 
-If the user asked to implement, fix, build, execute, or orchestrate:
+If implementation was requested:
 
-1. create a schema-version-1 dispatcher plan internally
-2. include the final `skill-maintenance` task for substantial work
-3. save the plan under `.git/agent-harness/plans/`
-4. invoke `agent-harness orchestrate <generated-plan.json>`
-5. inspect the integration branch, task results, verification, skill maintenance, and final review
-6. report the result; do not push or merge remotely unless explicitly requested
+1. create the schema-version-1 dispatcher plan internally
+2. save it under `.git/agent-harness/plans/`
+3. start it with `agent-harness orchestrate start <generated-plan.json>`
+4. capture the returned run id
+5. poll with `agent-harness orchestrate status <run-id>`
+6. use `agent-harness orchestrate logs <run-id>` only when progress/failure needs inspection
+7. after `STATUS success`, inspect the integration branch and final result
+8. report the result; do not push or merge remotely unless explicitly requested
 
-The dispatcher validates the plan before starting branches, worktrees, or agents. A separate dry-run is only needed when the user asks to preview/approve the plan first.
+Do **not** use Codex/ChatGPT native `create agent`, delegation, or sub-agent tools for repository execution. The dispatcher is the only agent-launch path.
 
-Example task order:
+Do **not** directly edit the same implementation while a dispatcher run is active. If a run is slow, keep polling durable state. If it fails, report the concrete failure or create a new corrective dispatcher plan; never duplicate the active task as a fallback.
+
+The detached dispatcher survives bounded shell/tool waits, so a timeout in the orchestrator's command view is not permission to reimplement the task itself.
+
+Example order:
 
 ```text
 implementation / tests
@@ -105,7 +100,7 @@ Ponytail and agentmemory are host integrations. Do not create setup tasks for th
 
 Before reporting success:
 
-1. inspect the integrated diff, including any skill changes
+1. inspect the integrated diff, including skill changes
 2. inspect deterministic verification results
 3. confirm repository skills still match durable current behavior
 4. require the configured reviewer to return `VERDICT: PASS`
