@@ -48,6 +48,7 @@ OLD_AGENTS_BLOBS=(
   "41adcfaf38b6ca2b8b9c2ec6005f4f75fb16832e" # v0.4.x-v0.6.0
   "bc52e816056d09a119d7680039055a3b1f59e0a0" # v0.6.1
   "690cc85979bf15c3aa99468a34f30618155b3fa8" # v0.6.2-v0.6.5
+  "74a3955795a1bc303bd03bcb173b56f99718ce19" # v0.7.0
 )
 if [[ -f "$AGENTS_FILE" ]]; then
   current_blob="$(git hash-object "$AGENTS_FILE" 2>/dev/null || true)"
@@ -66,13 +67,14 @@ OLD_ORCHESTRATOR_SKILL_BLOBS=(
   "bad3fbc6f77b2ef7f1c1448c85b36a7ae13b378e" # v0.6.3
   "fdd49c1743c6c7866cb43ea9b3f88771f95e30b0" # v0.6.4
   "bdbd44332809943b596dad4a85a11b073bfc7fa1" # v0.6.5
+  "442d129575564554ed6a4f256cc31f114b35e7ae" # v0.7.0
 )
 if [[ -f "$ORCHESTRATOR_SKILL" ]]; then
   current_blob="$(git hash-object "$ORCHESTRATOR_SKILL" 2>/dev/null || true)"
   for old_blob in "${OLD_ORCHESTRATOR_SKILL_BLOBS[@]}"; do
     if [[ "$current_blob" == "$old_blob" ]]; then
       cp "$INSTALL_DIR/templates/.agents/skills/repository-orchestrator/SKILL.md" "$ORCHESTRATOR_SKILL"
-      echo "MIGRATE $ORCHESTRATOR_SKILL (current native-subagent runtime)"
+      echo "MIGRATE $ORCHESTRATOR_SKILL (current host-runner runtime)"
       break
     fi
   done
