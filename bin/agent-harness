@@ -29,6 +29,7 @@ agent-harness doctor [path]
 agent-harness version
 agent-harness chatgpt-web <status|open|repair>
 agent-harness memory <start|status|stop|restart|logs|viewer|data-dir|doctor|upgrade> [...]
+agent-harness agy <start|status|stop|restart|doctor|logs|queue-dir>
 
 ready options:
   --yes
@@ -187,7 +188,12 @@ ready_harness() {
   command -v git >/dev/null 2>&1 && ok git || warn "git not found"
   command -v curl >/dev/null 2>&1 && ok curl || warn "curl not found"
   command -v codex >/dev/null 2>&1 && ok "Codex detected" || warn "Codex not detected"
-  command -v agy >/dev/null 2>&1 && ok "Antigravity CLI detected" || warn "Antigravity CLI not detected (optional)"
+  if command -v agy >/dev/null 2>&1; then
+    ok "Antigravity CLI detected"
+    run_setup_script agy-runner-service.sh start || warn "Antigravity host runner could not start; run 'agent-harness agy doctor' from a normal terminal"
+  else
+    warn "Antigravity CLI not detected (optional)"
+  fi
   if command -v node >/dev/null 2>&1 && command -v npx >/dev/null 2>&1 && [[ "$(node_major || echo 0)" -ge 20 ]]; then
     ok "Node $(node -v) + npx"
   else
@@ -242,10 +248,14 @@ ChatGPT Web Full Harness:
   Keep Codex Web GPT running, sign in, run its smoke test, install Web models, enable Full Harness,
   finish the connector setup, then restart Codex.
 
+Antigravity host runner:
+  Bootstrap starts it from your normal terminal when `agy` is installed.
+  Check it with `agent-harness agy status` or run the optional live smoke test with `agent-harness agy doctor`.
+
 Orchestration:
-  Codex work uses Codex native subagents. Antigravity work uses `agy`.
+  Codex work uses Codex native subagents. Antigravity work is sent to the host-side `agy` runner.
   The harness helper manages isolated worktrees, verification, integration, and delivery.
-  It never launches a nested `codex exec` worker.
+  It never launches a nested `codex exec` worker or starts `agy` inside the Codex/Web sandbox.
 NEXT
 }
 
@@ -267,7 +277,12 @@ doctor_harness() {
   log ""
   log "External readiness (informational):"
   command -v codex >/dev/null 2>&1 && ok codex || warn "codex not found"
-  command -v agy >/dev/null 2>&1 && ok agy || warn "agy not found (optional)"
+  if command -v agy >/dev/null 2>&1; then
+    ok agy
+    run_setup_script agy-runner-service.sh status || warn "agy host runner not running; start it from a normal terminal with 'agent-harness agy start'"
+  else
+    warn "agy not found (optional)"
+  fi
   run_setup_script chatgpt-web-control.sh status || true
 
   if [[ "$(node_major || echo 0)" -ge 20 ]] && command -v npx >/dev/null 2>&1; then ok "Node $(node -v) + npx"; else warn "Node.js 20+ with npx not ready"; fi
@@ -283,6 +298,7 @@ case "$COMMAND" in
   version) cat "$VERSION_FILE" ;;
   chatgpt-web) exec bash "$SETUP_DIR/chatgpt-web-control.sh" "$@" ;;
   memory) exec bash "$SETUP_DIR/agentmemory-service.sh" "$@" ;;
+  agy) exec bash "$SETUP_DIR/agy-runner-service.sh" "$@" ;;
   help|--help|-h) usage ;;
   *) echo "Unknown command: $COMMAND" >&2; usage >&2; exit 1 ;;
 esac
