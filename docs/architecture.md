@@ -43,13 +43,16 @@ The dispatcher:
 - creates isolated task worktrees in the shadow repository
 - schedules dependencies and safe parallel work
 - uses Codex and Antigravity (`agy`) directly, with fallback to the other installed executor when needed
+- gives workers writable temporary runtime directories
+- redirects Codex SQLite state with `CODEX_SQLITE_HOME` while preserving the user's normal Codex config/auth
+- runs Codex workers ephemerally so orchestration does not depend on writable conversation state
 - runs verification outside agent self-reports
 - integrates successful commits
 - runs skill maintenance after implementation
 - blocks failed dependents and merge conflicts
 - runs final review
 - applies only the verified result delta back to the caller worktree
-- stores status, logs, patch, and shadow repository under the system temporary directory by default
+- stores status, logs, patch, executor runtime state, and shadow repository under the system temporary directory by default
 
 It never pushes or merges remotely by itself.
 
@@ -59,7 +62,7 @@ It never pushes or merges remotely by itself.
 
 **agentmemory** provides selective shared local history. Current code and task requirements always override memory.
 
-**Codex Web GPT** lets a ChatGPT Web model use the local Codex tool surface. Keep its launcher open while using Web models.
+**Codex Web GPT** lets a ChatGPT Web model use the local Codex tool surface. It is the parent orchestration bridge only, not a worker executor. Keep its launcher open while using Web models.
 
 ## Repository skills
 
@@ -82,6 +85,7 @@ explicit task requirements
 - never store secrets in memory or task packets
 - executors must not recursively create more agents
 - the orchestrator must not duplicate an active dispatcher task
+- Codex Web GPT is never launched as a repository worker
 - verified patches are checked before they are applied back to the caller worktree
 - simplicity must not remove auth, validation, transactions, idempotency, concurrency, data integrity, security, or accessibility controls
 - skill maintenance changes only repository skill knowledge
