@@ -45,6 +45,23 @@ fi
 
 "$INSTALL_DIR/bin/agent-harness" ready "$TARGET" "$@"
 
+# Migrate only exact generated AGENTS files from older harness versions. Never
+# overwrite a repository-owned or user-edited contract.
+AGENTS_FILE="$TARGET/AGENTS.md"
+OLD_AGENTS_BLOBS=(
+  "41adcfaf38b6ca2b8b9c2ec6005f4f75fb16832e" # v0.4.x-v0.6.0
+)
+if [[ -f "$AGENTS_FILE" ]]; then
+  current_blob="$(git hash-object "$AGENTS_FILE" 2>/dev/null || true)"
+  for old_blob in "${OLD_AGENTS_BLOBS[@]}"; do
+    if [[ "$current_blob" == "$old_blob" ]]; then
+      cp "$INSTALL_DIR/templates/AGENTS.md" "$AGENTS_FILE"
+      echo "MIGRATE $AGENTS_FILE (current orchestration routing)"
+      break
+    fi
+  done
+fi
+
 # Migrate only exact generated orchestrator documents from older harness
 # versions. Never overwrite a user-edited copy.
 ORCHESTRATOR_FILE="$TARGET/docs/agent-orchestrator.md"

@@ -22,6 +22,8 @@ Improve the reel recommendation system using the repository orchestrator.
 Implement it, verify it, and do not push or merge remotely.
 ```
 
+`AGENTS.md` routes an explicit orchestrator request to `docs/agent-orchestrator.md`; native Codex/ChatGPT agent delegation is not used for that flow.
+
 The orchestrator handles the rest:
 
 ```text
