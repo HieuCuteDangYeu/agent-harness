@@ -16,13 +16,13 @@ Never override a higher-priority instruction with a lower-priority one.
 
 When the user explicitly asks to use the repository orchestrator, orchestration, or multi-agent execution:
 
-1. Read `docs/agent-orchestrator.md` before implementation or delegation.
-2. Follow that document as the execution protocol for the task.
+1. Use the `repository-orchestrator` skill before implementation or delegation.
+2. Follow that skill as the execution protocol for the task.
 3. Use the repository dispatcher (`agent-harness orchestrate ...`) as the only agent-launch path.
 4. Do not use native `create agent`, delegation, sub-agent, or ad-hoc agent tools for repository execution.
 5. Do not directly implement the same task while a dispatcher run is active.
 
-If `docs/agent-orchestrator.md` is missing or the dispatcher is unavailable, report the problem instead of silently substituting native delegation.
+If the `repository-orchestrator` skill is missing or the dispatcher is unavailable, report the problem instead of silently substituting native delegation.
 
 For ordinary focused tasks, do not invoke multi-agent orchestration unless the user asks for it or splitting the work is materially useful.
 
@@ -44,6 +44,7 @@ Do not implement solely from the issue description or a remembered summary when 
 
 ## Capability selection
 
+- Use `repository-orchestrator` for explicit repository orchestration or multi-agent execution requests.
 - Use `skill-discovery` when a task would materially benefit from specialist external expertise (for example UI/UX, accessibility, security, testing, migration, or framework-specific workflows).
 - Prefer a maintained trustworthy external skill over generating a weaker generic local duplicate.
 - Use `repo-skill-bootstrap` for repository-specific architecture, invariants, and workflows.
