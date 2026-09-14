@@ -7,7 +7,7 @@ description: Plan and execute substantial repository work through the agent-harn
 
 Turn the user's request into the smallest safe implementation and execute it through the repository dispatcher.
 
-Normal users should not create plan JSON, manage worktrees, or manually assign agents.
+Normal users do not create plan JSON, manage worktrees, or manually assign agents.
 
 ## Read first
 
@@ -29,8 +29,6 @@ explicit task requirements
     > general research
 ```
 
-Memory is advisory. Verify remembered facts against the current repository.
-
 ## Plan
 
 Build a compact internal task graph. Split only at real ownership or dependency boundaries.
@@ -40,7 +38,7 @@ Default roles:
 - **Codex** — primary implementation, backend logic, difficult debugging
 - **Gemini** — independent parallel work, focused tests, UI-oriented work, independent review
 
-Do not assign both agents to the same change unless alternatives were explicitly requested.
+The dispatcher resolves unavailable executors automatically: the Gemini role may use Antigravity (`agy`) or Codex when Gemini CLI is unavailable. Do not rewrite the task just because an optional executor is missing.
 
 Each task should contain only the goal, relevant paths/contracts, dependencies, acceptance criteria, constraints/non-goals, and deterministic verification commands.
 
@@ -64,29 +62,23 @@ If the user asked only for a plan, show the concise task graph and stop.
 If implementation was requested:
 
 1. create the schema-version-1 dispatcher plan internally
-2. save it under `.git/agent-harness/plans/`
+2. save it under `${TMPDIR:-/tmp}/agent-harness-plans/`
 3. start it with `agent-harness orchestrate start <generated-plan.json>`
 4. capture the returned run id
 5. poll with `agent-harness orchestrate status <run-id>`
 6. use `agent-harness orchestrate logs <run-id>` only when progress or failure needs inspection
-7. after `STATUS success`, inspect the integration branch and final result
+7. after `STATUS success`, inspect the applied working-tree result and final review
 8. report the result; do not push or merge remotely unless explicitly requested
+
+Detached start snapshots the caller's current committed, modified, deleted, and untracked non-ignored files into an isolated temporary Git repository. It does not require a clean worktree and does not write caller `.git` metadata. The verified final patch is applied back to the caller worktree.
+
+Do **not** create temporary Codex wrappers, patch harness internals inside the project, switch to foreground execution because the caller is dirty, or manually reconstruct a dirty baseline. If the dispatcher itself fails, report the concrete harness error.
 
 Do **not** use native `create agent`, delegation, sub-agent, or ad-hoc agent tools for repository execution. The dispatcher is the only agent-launch path.
 
 Do **not** directly edit the same implementation while a dispatcher run is active. If a run is slow, keep polling durable state. If it fails, report the concrete failure or create a new corrective dispatcher plan; never duplicate the active task as a fallback.
 
-A timeout in the orchestrator's command view is not permission to reimplement the task itself. The detached dispatcher survives bounded shell/tool waits.
-
-Example order:
-
-```text
-implementation / tests
-        ↓
-skill-maintenance
-        ↓
-final reviewer
-```
+A timeout or Web-model disconnect is not permission to reimplement the task. The detached dispatcher continues independently.
 
 ## Runtime behavior
 
@@ -96,6 +88,8 @@ Ponytail and agentmemory are host integrations. Do not create setup tasks for th
 - never simplify away auth, validation, transactions, concurrency/idempotency, data integrity, security, error handling, or accessibility
 - let executors query shared memory selectively when useful
 - save only concise, durable, verified lessons after meaningful work
+
+If device/emulator validation is blocked by the outer sandbox (for example ADB socket access), report that limitation after completing deterministic checks that are available. Do not bypass the orchestrator to work around it.
 
 ## Final review
 
