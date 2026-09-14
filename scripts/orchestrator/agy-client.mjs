@@ -1,5 +1,5 @@
 import { createHash, randomBytes } from 'node:crypto';
-import { existsSync, mkdirSync, readFileSync, renameSync, statSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, realpathSync, renameSync, statSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 
 function uid() {
@@ -8,6 +8,10 @@ function uid() {
 
 export function agyQueueRoot() {
   return process.env.AGENT_HARNESS_AGY_QUEUE_DIR || path.join('/tmp', `agent-harness-agy-${uid()}`);
+}
+
+export function harnessStateRoot() {
+  return path.resolve(process.env.AGENT_HARNESS_STATE_DIR || path.join('/tmp', 'agent-harness-state'));
 }
 
 function queuePath(...parts) {
@@ -23,6 +27,39 @@ function ensureQueue() {
 
 function readJson(file) {
   return JSON.parse(readFileSync(file, 'utf8'));
+}
+
+function isInside(root, candidate) {
+  const rel = path.relative(root, candidate);
+  return rel && !rel.startsWith('..') && !path.isAbsolute(rel);
+}
+
+export function validateAgyCwd(cwd, taskId = 'agy-task') {
+  if (!path.isAbsolute(cwd)) throw new Error('agy job cwd must be an absolute path');
+  if (!existsSync(cwd)) throw new Error(`agy job cwd does not exist: ${cwd}`);
+
+  const resolved = realpathSync(cwd);
+  const stateRoot = harnessStateRoot();
+  if (!isInside(stateRoot, resolved)) {
+    throw new Error(`agy host jobs may run only inside agent-harness state: ${stateRoot}`);
+  }
+
+  const rel = path.relative(stateRoot, resolved);
+  const parts = rel.split(path.sep);
+  if (taskId === 'doctor') {
+    if (parts[0] !== 'agy-doctor') throw new Error('agy doctor cwd is outside the dedicated doctor area');
+    return resolved;
+  }
+
+  const worktreesIndex = parts.indexOf('worktrees');
+  const runsIndex = parts.indexOf('runs');
+  if (runsIndex < 1 || worktreesIndex !== runsIndex + 2 || worktreesIndex === parts.length - 1) {
+    throw new Error('agy host jobs may run only inside orchestrator task/review worktrees');
+  }
+  if (!existsSync(path.join(resolved, '.git'))) {
+    throw new Error('agy host job cwd is not an orchestrator Git worktree');
+  }
+  return resolved;
 }
 
 export function agyRunnerStatus({ maxAgeMs = 10000 } = {}) {
@@ -57,9 +94,11 @@ export function submitAgyJob({ cwd, prompt, model = null, approval = null, timeo
   if (!runner.ready) {
     throw new Error(`agy host runner unavailable: ${runner.reason}. Start it from a normal terminal with: agent-harness agy start`);
   }
-  if (!path.isAbsolute(cwd)) throw new Error('agy job cwd must be an absolute path');
-  if (!existsSync(cwd)) throw new Error(`agy job cwd does not exist: ${cwd}`);
+  const safeCwd = validateAgyCwd(cwd, taskId);
   if (typeof prompt !== 'string' || !prompt.trim()) throw new Error('agy job prompt is required');
+  if (approval === 'yolo' && process.env.AGENT_HARNESS_AGY_ALLOW_YOLO !== '1') {
+    throw new Error('agy yolo mode is disabled; explicitly opt in when starting the host runner with AGENT_HARNESS_AGY_ALLOW_YOLO=1');
+  }
   ensureQueue();
 
   const id = stableJobId(idempotencyKey);
@@ -69,7 +108,7 @@ export function submitAgyJob({ cwd, prompt, model = null, approval = null, timeo
   const job = {
     version: 1,
     id,
-    cwd,
+    cwd: safeCwd,
     prompt,
     model,
     approval,
