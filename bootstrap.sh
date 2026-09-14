@@ -63,6 +63,23 @@ if [[ -f "$AGENTS_FILE" ]]; then
   done
 fi
 
+# Keep untouched harness-generated orchestrator skills current while preserving
+# project-owned edits.
+ORCHESTRATOR_SKILL="$TARGET/.agents/skills/repository-orchestrator/SKILL.md"
+OLD_ORCHESTRATOR_SKILL_BLOBS=(
+  "b8c258d37ec997437e161aa9ea148290b5715a10" # v0.6.2
+)
+if [[ -f "$ORCHESTRATOR_SKILL" ]]; then
+  current_blob="$(git hash-object "$ORCHESTRATOR_SKILL" 2>/dev/null || true)"
+  for old_blob in "${OLD_ORCHESTRATOR_SKILL_BLOBS[@]}"; do
+    if [[ "$current_blob" == "$old_blob" ]]; then
+      cp "$INSTALL_DIR/templates/.agents/skills/repository-orchestrator/SKILL.md" "$ORCHESTRATOR_SKILL"
+      echo "MIGRATE $ORCHESTRATOR_SKILL (current dispatcher runtime)"
+      break
+    fi
+  done
+fi
+
 # The ready/init step installs `.agents/skills/repository-orchestrator/` and
 # removes only known generated `docs/agent-orchestrator.md` copies. User-edited
 # project documentation is intentionally preserved.
