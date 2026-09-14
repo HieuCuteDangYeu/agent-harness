@@ -1,5 +1,6 @@
 import { spawn, spawnSync } from 'node:child_process';
 import { createWriteStream, mkdirSync, readFileSync } from 'node:fs';
+import path from 'node:path';
 
 export const TASK_ID_RE = /^[A-Za-z0-9][A-Za-z0-9._-]*$/;
 export const SUPPORTED_AGENTS = new Set(['codex', 'agy']);
@@ -132,7 +133,7 @@ export function reviewPrompt(plan, worktree) {
 }
 
 export async function runProcess(command, args, { cwd, input = null, env = {}, logFile, label, displayCommand = null }) {
-  mkdirSync(new URL('.', `file://${logFile}`).pathname, { recursive: true });
+  mkdirSync(path.dirname(logFile), { recursive: true });
   const log = createWriteStream(logFile, { flags: 'a' });
   log.write(`$ ${displayCommand || `${command} ${args.map(shellQuote).join(' ')}`}\n`);
   return await new Promise((resolve) => {
