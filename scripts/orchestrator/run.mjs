@@ -65,13 +65,13 @@ export async function run(argv) {
   const taskAgents = new Map();
   for (const task of plan.tasks) {
     const resolved = resolveAgent(task.agent);
-    if (!resolved) die(`no installed executor is available for task ${task.id} (requested ${task.agent}; install Codex, Gemini CLI, or Antigravity CLI)`);
+    if (!resolved) die(`no installed executor is available for task ${task.id} (requested ${task.agent}; install Codex or Antigravity CLI)`);
     taskAgents.set(task.id, resolved);
   }
   let reviewAgent = null;
   if (plan.review) {
     reviewAgent = resolveAgent(plan.review.agent);
-    if (!reviewAgent) die(`no installed executor is available for final review (requested ${plan.review.agent})`);
+    if (!reviewAgent) die(`no installed executor is available for final review (requested ${plan.review.agent}; install Codex or Antigravity CLI)`);
   }
 
   console.log(`PLAN    ${plan.name || 'unnamed'}`);
