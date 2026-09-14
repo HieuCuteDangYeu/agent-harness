@@ -51,8 +51,6 @@ fi
 MOCK
 chmod +x "$MOCK_BIN/codex"
 
-# No gemini executable is installed in this test. The logical gemini role must
-# transparently use Antigravity when agy is available.
 cat > "$MOCK_BIN/agy" <<'MOCK'
 #!/usr/bin/env bash
 set -euo pipefail
@@ -65,12 +63,12 @@ cat > "$REPO/plan.json" <<'JSON'
 {
   "version": 1,
   "name": "smoke",
-  "goal": "prove dependency scheduling, executor fallback, and integration",
+  "goal": "prove dependency scheduling, codex/agy execution, and integration",
   "base": "HEAD",
   "maxParallel": 2,
   "tasks": [
     {"id":"a","agent":"codex","prompt":"make a","verify":["test -f task-a.txt"]},
-    {"id":"b","agent":"gemini","prompt":"make b","verify":["test -f task-b.txt"]},
+    {"id":"b","agent":"agy","prompt":"make b","verify":["test -f task-b.txt"]},
     {"id":"c","agent":"codex","prompt":"make c","dependsOn":["a","b"],"verify":["test -f task-a.txt && test -f task-b.txt && test -f task-c.txt"]}
   ],
   "review": {"agent":"codex"}
@@ -80,11 +78,10 @@ JSON
 git -C "$REPO" add plan.json
 git -C "$REPO" commit -qm plan
 
-# Foreground execution remains available for manual/debug use.
 (
   cd "$REPO"
   PATH="$MOCK_BIN:$PATH" node "$ROOT/scripts/orchestrate.mjs" plan.json --dry-run > "$TMP/dry.log"
-  grep -q 'fallback=agy' "$TMP/dry.log"
+  grep -q 'TASK    b -> agy ' "$TMP/dry.log"
   PATH="$MOCK_BIN:$PATH" node "$ROOT/scripts/orchestrate.mjs" plan.json > "$TMP/output.log"
 )
 
@@ -104,13 +101,8 @@ if (summary.review?.verdict !== 'PASS') process.exit(1);
 if (summary.tasks.some((task) => task.status !== 'success')) process.exit(1);
 NODE
 
-# Foreground debug mode intentionally uses caller Git metadata. Remove that
-# state so the detached-mode assertion below proves it does not recreate it.
 rm -rf "$REPO/.git/agent-harness"
 
-# Detached mode must accept an existing dirty caller worktree, snapshot it as
-# the agent baseline, avoid caller .git writes, and apply only the verified
-# result patch back to the caller worktree.
 printf 'keep me dirty\n' > "$REPO/local-dirty.txt"
 START_OUTPUT="$(
   cd "$REPO"
@@ -153,5 +145,13 @@ test ! -e "$REPO/.git/agent-harness"
 case "$DETACHED_STATE" in
   "$REPO/.git"/*) echo "detached state must not live under caller .git" >&2; exit 1 ;;
 esac
+
+cat > "$REPO/gemini-plan.json" <<'JSON'
+{"version":1,"goal":"reject obsolete executor","tasks":[{"id":"x","agent":"gemini","prompt":"x"}]}
+JSON
+if (cd "$REPO" && PATH="$MOCK_BIN:$PATH" node "$ROOT/scripts/orchestrate.mjs" gemini-plan.json --dry-run >/dev/null 2>&1); then
+  echo "gemini must not be accepted as a dispatcher executor" >&2
+  exit 1
+fi
 
 echo "Orchestrator smoke test passed."

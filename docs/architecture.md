@@ -15,8 +15,7 @@ detached dispatcher
  ↓
 shadow repo from current worktree
  ├─ Codex workers
- ├─ Gemini workers
- └─ Antigravity fallback
+ └─ Antigravity (`agy`) workers
  ↓
 deterministic verification
  ↓
@@ -43,7 +42,7 @@ The dispatcher:
 - preserves an existing dirty caller worktree as the baseline
 - creates isolated task worktrees in the shadow repository
 - schedules dependencies and safe parallel work
-- prefers the requested Codex/Gemini executor and falls back to Antigravity or the other installed executor when needed
+- uses Codex and Antigravity (`agy`) directly, with fallback to the other installed executor when needed
 - runs verification outside agent self-reports
 - integrates successful commits
 - runs skill maintenance after implementation

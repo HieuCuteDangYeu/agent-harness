@@ -29,7 +29,7 @@ For substantial work where prior decisions or failures may matter, use the agent
 
 Start with a concise task-specific query and a small result set. Do not inject the whole memory store into context.
 
-The harness defaults to keyless local operation with local MiniLM embeddings and the lean core MCP tool set. No OpenAI, Gemini, or Anthropic API key is required for normal recall/save behavior.
+The harness defaults to keyless local operation with local MiniLM embeddings and the lean core MCP tool set. No cloud LLM API key is required for normal recall/save behavior.
 
 Skip memory retrieval for trivial edits where history is unlikely to change the solution.
 

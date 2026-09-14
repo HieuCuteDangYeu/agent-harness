@@ -31,7 +31,7 @@ your current worktree
    ↓
 isolated temporary baseline
    ↓
-Codex / Gemini / Antigravity workers
+Codex / Antigravity (agy) workers
    ↓
 verification
    ↓
@@ -44,7 +44,7 @@ verified patch applied back to your worktree
 
 You do not create plan JSON, worktrees, or agents yourself. Existing local changes are preserved automatically; a clean working tree is not required for normal detached orchestration.
 
-If Gemini CLI is unavailable, the dispatcher can use Antigravity (`agy`) or Codex for that logical role.
+The dispatcher uses `codex` and `agy` as first-class executors. If one is unavailable, it can fall back to the other.
 
 The dispatcher runs detached, so a ChatGPT Web disconnect or command wait limit does not cancel the run.
 

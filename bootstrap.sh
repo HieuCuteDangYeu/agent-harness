@@ -24,9 +24,6 @@ else
   git clone --depth 1 "$REPO_URL" "$INSTALL_DIR"
 fi
 
-# Do not symlink the CLI into ~/.local/bin. Besides keeping helper paths stable,
-# this wrapper provides the Node-based orchestration command without complicating
-# the existing Bash lifecycle CLI.
 rm -f "$BIN_DIR/agent-harness"
 {
   printf '%s\n' '#!/usr/bin/env bash'
@@ -45,8 +42,6 @@ fi
 
 "$INSTALL_DIR/bin/agent-harness" ready "$TARGET" "$@"
 
-# Migrate only exact generated AGENTS files from older harness versions. Never
-# overwrite a repository-owned or user-edited contract.
 AGENTS_FILE="$TARGET/AGENTS.md"
 OLD_AGENTS_BLOBS=(
   "41adcfaf38b6ca2b8b9c2ec6005f4f75fb16832e" # v0.4.x-v0.6.0
@@ -63,11 +58,10 @@ if [[ -f "$AGENTS_FILE" ]]; then
   done
 fi
 
-# Keep untouched harness-generated orchestrator skills current while preserving
-# project-owned edits.
 ORCHESTRATOR_SKILL="$TARGET/.agents/skills/repository-orchestrator/SKILL.md"
 OLD_ORCHESTRATOR_SKILL_BLOBS=(
   "b8c258d37ec997437e161aa9ea148290b5715a10" # v0.6.2
+  "bad3fbc6f77b2ef7f1c1448c85b36a7ae13b378e" # v0.6.3
 )
 if [[ -f "$ORCHESTRATOR_SKILL" ]]; then
   current_blob="$(git hash-object "$ORCHESTRATOR_SKILL" 2>/dev/null || true)"
