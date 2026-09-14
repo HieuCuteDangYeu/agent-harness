@@ -75,6 +75,8 @@ agy in isolated task worktree
 
 The runner preserves the user's normal Antigravity authentication and host runtime. Jobs are idempotent per orchestration task so a Web disconnect or command timeout does not create duplicate Antigravity workers.
 
+The runner resolves and validates every submitted working directory before launching `agy`. Normal jobs must point to an orchestrator-owned task/review worktree under the harness state directory; arbitrary project or home-directory paths are rejected. Unrestricted Antigravity command mode is disabled unless the user explicitly starts the runner with `AGENT_HARNESS_AGY_ALLOW_YOLO=1`.
+
 Codex and `agy` are separate executors. The harness does not silently cross-fallback when one fails.
 
 ## Runtime integrations
@@ -107,6 +109,7 @@ explicit task requirements
 - task subagents must not recursively delegate
 - never run the same implementation task in two places at once
 - verification is executed by the harness helper, not trusted from agent self-reports
-- Antigravity write-capable automation runs only in disposable task worktrees
+- Antigravity host jobs are restricted to disposable harness worktrees
+- unrestricted Antigravity command mode requires explicit host-side opt-in
 - remote push/merge stays under user control
 - simplicity must not remove auth, validation, transactions, idempotency, concurrency, data integrity, security, or accessibility controls
