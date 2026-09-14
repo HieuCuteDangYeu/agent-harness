@@ -30,6 +30,7 @@ jobs:
           node --check scripts/orchestrate.mjs
           node --check scripts/orchestrator/core.mjs
           node --check scripts/orchestrator/executor.mjs
+          node --check scripts/orchestrator/lifecycle.mjs
           node --check scripts/orchestrator/run.mjs
 
       - name: Run harness smoke test
