@@ -26,12 +26,9 @@ jobs:
           bash -n scripts/setup/chatgpt-web-control.sh
           bash -n scripts/setup/install-agentmemory.sh
           bash -n scripts/setup/agentmemory-service.sh
-          bash -n templates/scripts/agents/create-worktree.sh
           node --check scripts/orchestrate.mjs
           node --check scripts/orchestrator/core.mjs
-          node --check scripts/orchestrator/executor.mjs
-          node --check scripts/orchestrator/lifecycle.mjs
-          node --check scripts/orchestrator/run.mjs
+          node --check scripts/orchestrator/session.mjs
 
       - name: Run harness smoke test
         run: ./scripts/test-harness.sh
