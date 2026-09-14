@@ -68,6 +68,7 @@ OLD_ORCHESTRATOR_SKILL_BLOBS=(
   "fdd49c1743c6c7866cb43ea9b3f88771f95e30b0" # v0.6.4
   "bdbd44332809943b596dad4a85a11b073bfc7fa1" # v0.6.5
   "442d129575564554ed6a4f256cc31f114b35e7ae" # v0.7.0
+  "4fb4b2205e608965d62a09551b8310249ca55e49" # v0.7.1
 )
 if [[ -f "$ORCHESTRATOR_SKILL" ]]; then
   current_blob="$(git hash-object "$ORCHESTRATOR_SKILL" 2>/dev/null || true)"
