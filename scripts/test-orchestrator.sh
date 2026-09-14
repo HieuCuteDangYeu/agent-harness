@@ -104,6 +104,10 @@ if (summary.review?.verdict !== 'PASS') process.exit(1);
 if (summary.tasks.some((task) => task.status !== 'success')) process.exit(1);
 NODE
 
+# Foreground debug mode intentionally uses caller Git metadata. Remove that
+# state so the detached-mode assertion below proves it does not recreate it.
+rm -rf "$REPO/.git/agent-harness"
+
 # Detached mode must accept an existing dirty caller worktree, snapshot it as
 # the agent baseline, avoid caller .git writes, and apply only the verified
 # result patch back to the caller worktree.
