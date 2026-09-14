@@ -1,6 +1,6 @@
 ---
 name: repository-orchestrator
-description: Plan and execute substantial repository work through the agent-harness dispatcher. Use when the user explicitly asks for repository orchestration, multi-agent execution, or asks the harness to plan and implement a substantial task with Codex/Gemini workers, deterministic verification, skill maintenance, and final review.
+description: Plan and execute substantial repository work through the agent-harness dispatcher. Use when the user explicitly asks for repository orchestration, multi-agent execution, or asks the harness to plan and implement a substantial task with Codex/Antigravity workers, deterministic verification, skill maintenance, and final review.
 ---
 
 # Repository Orchestrator
@@ -35,10 +35,10 @@ Build a compact internal task graph. Split only at real ownership or dependency 
 
 Default roles:
 
-- **Codex** — primary implementation, backend logic, difficult debugging
-- **Gemini** — independent parallel work, focused tests, UI-oriented work, independent review
+- **Codex (`codex`)** — primary implementation, backend logic, difficult debugging
+- **Antigravity (`agy`)** — independent parallel work, focused tests, UI-oriented work, independent review
 
-The dispatcher resolves unavailable executors automatically: the Gemini role may use Antigravity (`agy`) or Codex when Gemini CLI is unavailable. Do not rewrite the task just because an optional executor is missing.
+Use `codex` or `agy` directly in the dispatcher plan. If one executor is unavailable, the dispatcher may fall back to the other. Do not invent a Gemini role or require Gemini CLI.
 
 Each task should contain only the goal, relevant paths/contracts, dependencies, acceptance criteria, constraints/non-goals, and deterministic verification commands.
 
