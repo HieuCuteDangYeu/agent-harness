@@ -184,9 +184,6 @@ init_harness() {
     "$TARGET/.agents/skills/shared-memory/SKILL.md" \
     "TencentDB Agent Memory"
 
-  # v0.5.6 and older created GitHub issue/PR templates. They are no longer part
-  # of the harness contract. Remove only exact harness-generated copies and
-  # leave user/project-owned .github files untouched.
   remove_if_unchanged_hash "$TARGET/.github/ISSUE_TEMPLATE/agent-task.md" "1a7563227f79eb2edd6ecb83ad4fd38fbadcaf35"
   remove_if_unchanged_hash "$TARGET/.github/pull_request_template.md" "180a428ed4da1e5fc621e8d86ddd6270f50e62e3"
 
@@ -231,10 +228,8 @@ ready_harness() {
   command -v codex >/dev/null 2>&1 && ok "Codex detected" || warn "Codex not detected; install it separately before using Codex workflows."
   if command -v agy >/dev/null 2>&1 || command -v antigravity >/dev/null 2>&1; then
     ok "Antigravity CLI detected"
-  elif command -v gemini >/dev/null 2>&1; then
-    ok "Gemini CLI detected"
   else
-    warn "Antigravity/Gemini CLI not detected; this is optional."
+    warn "Antigravity CLI not detected; this is optional."
   fi
 
   if command -v node >/dev/null 2>&1 && command -v npx >/dev/null 2>&1; then
@@ -322,7 +317,7 @@ agentmemory:
   - REST/MCP: http://127.0.0.1:3111
   - Viewer:   http://127.0.0.1:3113
   - Local semantic embeddings are enabled; the first semantic request downloads MiniLM once.
-  - Codex/Gemini/Antigravity are wired through agentmemory's supported MCP adapters when detected.
+  - Codex and Antigravity are wired through agentmemory's supported MCP adapters when detected.
 
 Memory lifecycle:
   agent-harness memory status
@@ -376,6 +371,7 @@ doctor_harness() {
   log ""
   log "External readiness (informational):"
   command -v codex >/dev/null 2>&1 && ok "codex" || warn "codex not found"
+  command -v agy >/dev/null 2>&1 && ok "agy" || warn "agy not found (optional)"
   run_setup_script chatgpt-web-control.sh status || true
 
   major="$(node_major || echo 0)"
