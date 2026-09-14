@@ -79,6 +79,12 @@ grep -q '41adcfaf38b6ca2b8b9c2ec6005f4f75fb16832e' "$ROOT/bootstrap.sh"
 grep -q 'bc52e816056d09a119d7680039055a3b1f59e0a0' "$ROOT/bootstrap.sh"
 grep -q 'current orchestration routing' "$ROOT/bootstrap.sh"
 
+# Bootstrap must also refresh an untouched v0.6.2 repository-orchestrator skill
+# so existing projects receive the sandbox-safe runtime contract.
+grep -q 'OLD_ORCHESTRATOR_SKILL_BLOBS' "$ROOT/bootstrap.sh"
+grep -q 'b8c258d37ec997437e161aa9ea148290b5715a10' "$ROOT/bootstrap.sh"
+grep -q 'current dispatcher runtime' "$ROOT/bootstrap.sh"
+
 # init removes known generated orchestrator docs because orchestration now lives
 # in .agents/skills/repository-orchestrator/.
 grep -q 'remove_generated_orchestrator_doc' "$ROOT/bin/agent-harness"

@@ -18,8 +18,14 @@ export function shellQuote(value) {
   return `'${String(value).replace(/'/g, `'\\''`)}'`;
 }
 
-export function git(args, { cwd, allowFailure = false } = {}) {
-  const result = spawnSync('git', args, { cwd, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
+export function git(args, { cwd, allowFailure = false, env = {} } = {}) {
+  const result = spawnSync('git', args, {
+    cwd,
+    encoding: 'utf8',
+    stdio: ['ignore', 'pipe', 'pipe'],
+    env: { ...process.env, ...env },
+    maxBuffer: 64 * 1024 * 1024,
+  });
   if (result.status !== 0 && !allowFailure) {
     throw new Error(`git ${args.join(' ')} failed: ${(result.stderr || result.stdout || '').trim()}`);
   }
@@ -31,8 +37,22 @@ export function commandExists(command) {
   return result.status === 0;
 }
 
+export function resolveAgent(requested) {
+  if (requested === 'codex') {
+    if (commandExists('codex')) return 'codex';
+    if (commandExists('gemini')) return 'gemini';
+    if (commandExists('agy')) return 'agy';
+  }
+  if (requested === 'gemini') {
+    if (commandExists('gemini')) return 'gemini';
+    if (commandExists('agy')) return 'agy';
+    if (commandExists('codex')) return 'codex';
+  }
+  return null;
+}
+
 export function usage() {
-  console.log(`agent-harness orchestrate start <plan.json>\nagent-harness orchestrate status [run-id|latest]\nagent-harness orchestrate logs [run-id|latest] [lines]\nagent-harness orchestrate <plan.json> [options]\nagent-harness orchestrate example\n\nNormal orchestrator use:\n  start                   Run the dispatcher detached so ChatGPT/Web tool waits cannot cancel or duplicate it.\n  status                  Read durable run state without waiting on the agent process.\n  logs                    Tail the dispatcher log.\n\nForeground/debug options:\n  --dry-run               Validate and print the graph without running agents.\n  --max-parallel <n>      Override plan.maxParallel (default 2, max 8).\n  --keep-worktrees        Keep temporary worktrees for debugging.\n  --allow-dirty           Ignore caller-worktree changes; they are NOT included.\n\nExecution is local-only: the harness creates an integration branch and isolated\nworktrees, runs assigned agents, verifies tasks, schedules dependencies, merges\nsuccessful task commits into the integration branch, and optionally runs a final\nreview. It never pushes or merges to a remote automatically.`);
+  console.log(`agent-harness orchestrate start <plan.json>\nagent-harness orchestrate status [run-id|latest]\nagent-harness orchestrate logs [run-id|latest] [lines]\nagent-harness orchestrate <plan.json> [options]\nagent-harness orchestrate example\n\nNormal orchestrator use:\n  start                   Snapshot the current worktree into an isolated temporary repo and run detached.\n                          Existing committed, modified, deleted, and untracked non-ignored files become the baseline.\n                          The final verified patch is applied back to the caller worktree without writing caller .git metadata.\n  status                  Read durable run state without waiting on the agent process.\n  logs                    Tail the dispatcher log.\n\nForeground/debug options:\n  --dry-run               Validate and print the graph without running agents.\n  --max-parallel <n>      Override plan.maxParallel (default 2, max 8).\n  --keep-worktrees        Keep temporary worktrees for debugging.\n  --allow-dirty           Foreground only: ignore caller-worktree changes; they are NOT included.\n\nLogical agent roles are codex and gemini. At runtime the dispatcher prefers the requested\nexecutor, uses Antigravity (agy) for the gemini role when available, and falls back to the\nother installed executor when necessary.\n\nExecution is local-only. Detached mode avoids caller .git writes, runs agents in isolated\nworktrees, verifies tasks, integrates successful work, performs final review, and applies\nonly the verified result patch back to the caller worktree. It never pushes or merges remotely.`);
 }
 
 export function examplePlan() {
@@ -189,12 +209,36 @@ export async function runProcess(command, args, { cwd, input = null, env = {}, l
 
 export async function invokeAgent(agent, { cwd, prompt, model, approval, logFile, resultFile, taskId }) {
   if (!commandExists(agent)) return { code: 127, error: `${agent} command not found`, stdout: '', stderr: '' };
+
   if (agent === 'codex') {
-    const args = ['exec', '--approve-for-me', '-C', cwd, '--output-last-message', resultFile];
+    const args = ['--ask-for-approval', 'never', 'exec', '--sandbox', 'workspace-write', '-C', cwd, '--output-last-message', resultFile];
     if (model) args.push('--model', model);
     args.push('-');
-    return runProcess('codex', args, { cwd, input: prompt, logFile, label: taskId, env: { AGENT_HARNESS_TASK_ID: taskId } });
+    return runProcess('codex', args, {
+      cwd,
+      input: prompt,
+      logFile,
+      label: taskId,
+      env: { AGENT_HARNESS_TASK_ID: taskId },
+    });
   }
+
+  if (agent === 'agy') {
+    const args = ['--print-timeout', '15m'];
+    if (model) args.push('--model', model);
+    if (approval === 'yolo') args.push('--dangerously-skip-permissions');
+    args.push('--prompt', prompt);
+    const result = await runProcess('agy', args, {
+      cwd,
+      logFile,
+      label: taskId,
+      env: { AGENT_HARNESS_TASK_ID: taskId },
+      displayCommand: `agy --print-timeout 15m${model ? ` --model ${shellQuote(model)}` : ''}${approval === 'yolo' ? ' --dangerously-skip-permissions' : ''} --prompt '[task packet omitted]'`,
+    });
+    writeFileSync(resultFile, result.stdout || '', 'utf8');
+    return result;
+  }
+
   const mode = approval === 'yolo' ? 'yolo' : 'auto_edit';
   const args = ['--approval-mode', mode, '--output-format', 'text'];
   if (model) args.push('--model', model);

@@ -22,20 +22,16 @@ Improve the reel recommendation system using the repository orchestrator.
 Implement it, verify it, and do not push or merge remotely.
 ```
 
-`AGENTS.md` routes an explicit orchestrator request to the `repository-orchestrator` skill under `.agents/skills/`; native Codex/ChatGPT agent delegation is not used for that flow.
+`AGENTS.md` routes this to `.agents/skills/repository-orchestrator/SKILL.md`.
 
-The orchestrator handles the rest:
+The harness handles the rest:
 
 ```text
-your request
+your current worktree
    ↓
-inspect repo + relevant skills/memory
+isolated temporary baseline
    ↓
-create task graph internally
-   ↓
-start detached dispatcher
-   ↓
-Codex / Gemini worktrees
+Codex / Gemini / Antigravity workers
    ↓
 verification
    ↓
@@ -43,12 +39,14 @@ skill-maintenance
    ↓
 final review
    ↓
-local integration branch
+verified patch applied back to your worktree
 ```
 
-You do not create plan JSON, worktrees, or agents yourself.
+You do not create plan JSON, worktrees, or agents yourself. Existing local changes are preserved automatically; a clean working tree is not required for normal detached orchestration.
 
-The dispatcher runs detached so ChatGPT/Codex command wait limits do not interrupt it. The orchestrator checks durable run state instead of starting duplicate fallback work.
+If Gemini CLI is unavailable, the dispatcher can use Antigravity (`agy`) or Codex for that logical role.
+
+The dispatcher runs detached, so a ChatGPT Web disconnect or command wait limit does not cancel the run.
 
 ## Plan only
 
@@ -88,7 +86,7 @@ agent-harness orchestrate status latest
 agent-harness orchestrate logs latest
 ```
 
-The integration branch is `agent/orchestrate-*`. The dispatcher never pushes or merges remotely.
+Detached runtime state and the shadow Git repository live under the system temporary directory by default, not under your project's `.git` directory. The harness never pushes or merges remotely.
 
 ## Troubleshooting
 
