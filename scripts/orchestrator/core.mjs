@@ -1,6 +1,7 @@
 import { spawn, spawnSync } from 'node:child_process';
 import { createWriteStream, mkdirSync, readFileSync } from 'node:fs';
 import path from 'node:path';
+import { agyRunnerStatus, getAgyJob, submitAgyJob } from './agy-client.mjs';
 
 export const TASK_ID_RE = /^[A-Za-z0-9][A-Za-z0-9._-]*$/;
 export const SUPPORTED_AGENTS = new Set(['codex', 'agy']);
@@ -32,8 +33,14 @@ export function git(args, { cwd, allowFailure = false, env = {} } = {}) {
   return { status: result.status ?? 1, stdout: (result.stdout || '').trim(), stderr: (result.stderr || '').trim() };
 }
 
+export function commandExists(command) {
+  if (command === 'agy') return agyRunnerStatus().ready;
+  const result = spawnSync('sh', ['-c', `command -v ${shellQuote(command)} >/dev/null 2>&1`], { env: process.env });
+  return result.status === 0;
+}
+
 export function usage() {
-  console.log(`agent-harness orchestrate prepare <plan.json>\nagent-harness orchestrate ready [run-id|latest]\nagent-harness orchestrate task <run-id|latest> <task-id>\nagent-harness orchestrate agy <run-id|latest> <task-id>\nagent-harness orchestrate agy-status <run-id|latest> <task-id>\nagent-harness orchestrate complete <run-id|latest> <task-id>\nagent-harness orchestrate fail <run-id|latest> <task-id> [reason]\nagent-harness orchestrate review-task <run-id|latest>\nagent-harness orchestrate review-agy <run-id|latest>\nagent-harness orchestrate review-agy-status <run-id|latest>\nagent-harness orchestrate review <run-id|latest> <PASS|BLOCK>\nagent-harness orchestrate deliver <run-id|latest>\nagent-harness orchestrate status [run-id|latest]\nagent-harness orchestrate abort [run-id|latest]\nagent-harness orchestrate example\n\nNormal use is driven by the repository-orchestrator skill. Codex tasks are spawned with\nCodex's native subagent tools. Antigravity tasks are submitted to the host-side agy runner\nstarted from the user's normal terminal. The helper manages temporary shadow repositories,\nworktrees, deterministic verification, integration, review state, and delivery. It never\nlaunches a nested codex CLI process and never runs agy directly inside the Codex/Web sandbox.`);
+  console.log(`agent-harness orchestrate prepare <plan.json>\nagent-harness orchestrate ready [run-id|latest]\nagent-harness orchestrate task <run-id|latest> <task-id>\nagent-harness orchestrate agy <run-id|latest> <task-id>\nagent-harness orchestrate complete <run-id|latest> <task-id>\nagent-harness orchestrate fail <run-id|latest> <task-id> [reason]\nagent-harness orchestrate review-task <run-id|latest>\nagent-harness orchestrate review-agy <run-id|latest>\nagent-harness orchestrate review <run-id|latest> <PASS|BLOCK>\nagent-harness orchestrate deliver <run-id|latest>\nagent-harness orchestrate status [run-id|latest]\nagent-harness orchestrate abort [run-id|latest]\nagent-harness orchestrate example\n\nNormal use is driven by the repository-orchestrator skill. Codex tasks are spawned with\nCodex's native subagent tools. Antigravity tasks are submitted to the host-side agy runner\nstarted from the user's normal terminal. The helper manages temporary shadow repositories,\nworktrees, deterministic verification, integration, review state, and delivery. It never\nlaunches a nested codex CLI process and never runs agy directly inside the Codex/Web sandbox.`);
 }
 
 export function examplePlan() {
@@ -171,4 +178,52 @@ export async function runProcess(command, args, { cwd, input = null, env = {}, l
     });
     child.stdin.end(input ?? undefined);
   });
+}
+
+export async function invokeAgy({ cwd, prompt, model, approval, logFile, taskId }) {
+  const runner = agyRunnerStatus();
+  if (!runner.ready) {
+    return { code: 127, error: `agy host runner unavailable: ${runner.reason}. Start it from a normal terminal with: agent-harness agy start`, stdout: '', stderr: '' };
+  }
+
+  let submitted;
+  try {
+    submitted = submitAgyJob({
+      cwd,
+      prompt,
+      model,
+      approval,
+      timeout: '15m',
+      taskId,
+      idempotencyKey: `${cwd}\u0000${taskId}`,
+    });
+  } catch (error) {
+    return { code: 127, error: error.message, stdout: '', stderr: '' };
+  }
+
+  const log = createWriteStream(logFile, { flags: 'a' });
+  log.write(`agy-host-job=${submitted.id}${submitted.reused ? ' reused' : ' submitted'}\n`);
+  log.end();
+  console.log(`[${taskId}] AGY_HOST_JOB ${submitted.id}${submitted.reused ? ' reused' : ''}`);
+
+  while (true) {
+    const state = getAgyJob(submitted.id);
+    if (state.state === 'complete') {
+      const result = state.result;
+      return {
+        code: result.status === 'success' ? 0 : (result.code ?? 1),
+        error: result.status === 'success' ? null : (result.error || `agy host job failed (${result.agyStatus || result.code || 'unknown'})`),
+        stdout: result.response || result.stdoutTail || '',
+        stderr: result.stderrTail || '',
+      };
+    }
+    if (state.state === 'missing') {
+      return { code: 1, error: `agy host job disappeared: ${submitted.id}`, stdout: '', stderr: '' };
+    }
+    const health = agyRunnerStatus();
+    if (!health.ready) {
+      return { code: 1, error: `agy host runner stopped while job ${submitted.id} was ${state.state}`, stdout: '', stderr: '' };
+    }
+    await new Promise((resolve) => setTimeout(resolve, 500));
+  }
 }
