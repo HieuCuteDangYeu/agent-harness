@@ -88,6 +88,16 @@ If it is stopped, run this from a normal terminal, not from inside the Web/Codex
 agent-harness agy start
 ```
 
+The host runner accepts only disposable task/review worktrees created under the harness state directory. It rejects arbitrary project, home-directory, or other host paths before starting `agy`.
+
+By default the runner does not allow Antigravity's unrestricted `--dangerously-skip-permissions` mode. If a trusted task genuinely needs host commands that headless request-review cannot approve, such as ADB, opt in explicitly from your normal terminal:
+
+```bash
+AGENT_HARNESS_AGY_ALLOW_YOLO=1 agent-harness agy restart
+```
+
+This gives `agy` unrestricted host command permissions for assigned isolated worktrees, so enable it only when you accept that risk. Restart normally without the environment variable to disable it again.
+
 If a Web tool window expires while an `agy` task is still running, repeat the same orchestration command. The job is idempotent and continues in the host runner rather than spawning a duplicate worker.
 
 ## Skill maintenance
