@@ -59,16 +59,11 @@ ensure_env EMBEDDING_PROVIDER local
 ensure_env AGENTMEMORY_TOOLS core
 ok "agentmemory data directory: $DATA_ROOT"
 
-# Upstream keeps backward compatibility with ./data when old state files exist.
-# The harness always supplies AGENTMEMORY_DATA_DIR, so repository-local data is
-# never selected implicitly. Do not auto-delete/move a project's data directory.
 if [[ -f "$PWD/data/state_store.db" || -f "$PWD/data/iii-config.yaml" ]]; then
   warn "Legacy repo-local agentmemory data detected at $PWD/data"
   warn "The harness will use $DATA_ROOT instead. Inspect/migrate the old data before deleting it."
 fi
 
-# Upstream's default `agentmemory` command is a long-running foreground worker.
-# Always go through our lifecycle wrapper so bootstrap gets its terminal back.
 if [[ "$env_changed" -eq 1 ]] && curl -fsS --max-time 2 "$BASE_URL/agentmemory/livez" >/dev/null 2>&1; then
   echo "Restarting agentmemory so new local defaults take effect..."
   bash "$SERVICE_SCRIPT" restart
@@ -97,16 +92,11 @@ if command -v agy >/dev/null 2>&1 || command -v antigravity >/dev/null 2>&1; the
   CI=1 npx -y "$PACKAGE" connect antigravity || warn "Antigravity wiring needs attention."
 fi
 
-if command -v gemini >/dev/null 2>&1; then
-  echo "Wiring agentmemory into Gemini CLI..."
-  CI=1 npx -y "$PACKAGE" connect gemini-cli || warn "Gemini CLI wiring needs attention."
-fi
-
 cat <<NEXT
 
 agentmemory is ready in keyless mode and runs detached from this terminal.
 
-No OpenAI/Gemini/Anthropic API key is required.
+No cloud LLM API key is required.
 Defaults selected by agent-harness when those settings were not already configured:
   - local semantic embeddings: Xenova/all-MiniLM-L6-v2
   - MCP tool surface: core (8 tools)
@@ -126,6 +116,6 @@ Lifecycle:
   agent-harness memory viewer
 
 The first semantic-memory request downloads the local MiniLM model once.
-Restart Codex / Gemini / Antigravity after setup so they reload MCP configuration.
+Restart Codex / Antigravity after setup so they reload MCP configuration.
 Codex users should launch the Codex TUI once and review/trust the new hooks.
 NEXT
