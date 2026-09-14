@@ -34,7 +34,7 @@ export function git(args, { cwd, allowFailure = false, env = {} } = {}) {
 }
 
 export function commandExists(command) {
-  if (command === 'agy') return agyRunnerStatus().ready;
+  if (command === 'agy' && agyRunnerStatus().ready) return true;
   const result = spawnSync('sh', ['-c', `command -v ${shellQuote(command)} >/dev/null 2>&1`], { env: process.env });
   return result.status === 0;
 }
@@ -51,7 +51,7 @@ export function examplePlan() {
     maxParallel: 2,
     tasks: [
       { id: 'implementation', agent: 'codex', prompt: 'Implement the requested behavior.', dependsOn: [], acceptanceCriteria: ['Required behavior is implemented'], verify: ['pnpm test'] },
-      { id: 'tests', agent: 'agy', prompt: 'Add focused tests for the requested behavior.', dependsOn: ['implementation'], acceptanceCriteria: ['Tests cover important paths'], verify: ['pnpm test'] },
+      { id: 'tests', agent: 'agy', prompt: 'Add focused tests for the requested behavior.', dependsOn: ['implementation'], acceptanceCriteria: ['Tests cover important paths'], approval: 'yolo', verify: ['pnpm test'] },
     ],
     review: { agent: 'codex', prompt: 'Focus on correctness, architecture, security, concurrency, and missing tests.' },
   }, null, 2));
