@@ -3,12 +3,20 @@ set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 TMP="$(mktemp -d)"
-trap 'rm -rf "$TMP"' EXIT
-
 REPO="$TMP/repo"
 MOCK_BIN="$TMP/bin"
 STATE_DIR="$TMP/state"
-mkdir -p "$REPO" "$MOCK_BIN" "$STATE_DIR"
+QUEUE_DIR="$TMP/agy-queue"
+RUNNER_LOG="$TMP/agy-runner.log"
+RUNNER_PID=""
+
+cleanup() {
+  if [[ -n "$RUNNER_PID" ]]; then kill "$RUNNER_PID" 2>/dev/null || true; fi
+  rm -rf "$TMP"
+}
+trap cleanup EXIT
+
+mkdir -p "$REPO" "$MOCK_BIN" "$STATE_DIR" "$QUEUE_DIR"
 
 git -C "$REPO" init -q
 git -C "$REPO" config user.name test
@@ -21,23 +29,32 @@ cat > "$MOCK_BIN/agy" <<'MOCK'
 #!/usr/bin/env bash
 set -euo pipefail
 if [[ "${AGENT_HARNESS_TASK_ID:-}" == "review" ]]; then
-  printf 'Review complete.\nVERDICT: PASS\n'
+  printf '%s\n' '{"event":"result","result":{"status":"SUCCESS","response":"Review complete.\nVERDICT: PASS\n"}}'
 else
   printf '%s\n' "$AGENT_HARNESS_TASK_ID" > "task-$AGENT_HARNESS_TASK_ID.txt"
-  printf 'done\n'
+  printf '%s\n' '{"event":"result","result":{"status":"SUCCESS","response":"done\n"}}'
 fi
 MOCK
 chmod +x "$MOCK_BIN/agy"
+
+PATH="$MOCK_BIN:$PATH" AGENT_HARNESS_AGY_QUEUE_DIR="$QUEUE_DIR" \
+  node "$ROOT/scripts/agy-runner.mjs" serve >"$RUNNER_LOG" 2>&1 &
+RUNNER_PID=$!
+for _ in $(seq 1 50); do
+  [[ -f "$QUEUE_DIR/runner.json" ]] && break
+  sleep 0.1
+done
+test -f "$QUEUE_DIR/runner.json"
 
 cat > "$REPO/plan.json" <<'JSON'
 {
   "version": 1,
   "name": "native-smoke",
-  "goal": "prove native Codex worktree handoff plus agy integration",
+  "goal": "prove native Codex worktree handoff plus host-side agy integration",
   "maxParallel": 2,
   "tasks": [
     {"id":"a","agent":"codex","prompt":"make a","verify":["test -f task-a.txt"]},
-    {"id":"b","agent":"agy","prompt":"make b","dependsOn":["a"],"verify":["test -f task-a.txt && test -f task-b.txt"]}
+    {"id":"b","agent":"agy","prompt":"make b","dependsOn":["a"],"approval":"yolo","verify":["test -f task-a.txt && test -f task-b.txt"]}
   ],
   "review": {"agent":"codex","prompt":"review the integrated result"}
 }
@@ -50,7 +67,8 @@ printf 'keep me dirty\n' > "$REPO/local-dirty.txt"
 run_harness() {
   (
     cd "$REPO"
-    PATH="$MOCK_BIN:$PATH" AGENT_HARNESS_STATE_DIR="$STATE_DIR" node "$ROOT/scripts/orchestrate.mjs" "$@"
+    PATH="$MOCK_BIN:$PATH" AGENT_HARNESS_STATE_DIR="$STATE_DIR" AGENT_HARNESS_AGY_QUEUE_DIR="$QUEUE_DIR" \
+      node "$ROOT/scripts/orchestrate.mjs" "$@"
   )
 }
 
@@ -73,7 +91,9 @@ run_harness complete "$RUN_ID" a | grep -q '^DONE    a$'
 
 READY_OUTPUT="$(run_harness ready "$RUN_ID")"
 printf '%s\n' "$READY_OUTPUT" | grep -q '^READY   b agent=agy$'
-run_harness agy "$RUN_ID" b | grep -q '^DONE    b$'
+AGY_OUTPUT="$(run_harness agy "$RUN_ID" b)"
+printf '%s\n' "$AGY_OUTPUT" | grep -q 'AGY_HOST_JOB'
+printf '%s\n' "$AGY_OUTPUT" | grep -q '^DONE    b$'
 
 STATUS_OUTPUT="$(run_harness status "$RUN_ID")"
 printf '%s\n' "$STATUS_OUTPUT" | grep -q '^STATUS  review_pending$'
@@ -109,8 +129,11 @@ if run_harness prepare gemini-plan.json >/dev/null 2>&1; then
   exit 1
 fi
 
-# Codex is never launched as a nested CLI worker by the helper.
+# Codex is never launched as a nested CLI worker, and agy is launched only by the host runner.
 ! grep -q "runProcess('codex'" "$ROOT/scripts/orchestrator/core.mjs"
 ! grep -q 'CODEX_SQLITE_HOME' "$ROOT/scripts/orchestrator/core.mjs"
+! grep -q "spawn('agy'" "$ROOT/scripts/orchestrator/core.mjs"
+grep -q "spawn('agy'" "$ROOT/scripts/agy-runner.mjs"
+grep -q 'submitAgyJob' "$ROOT/scripts/orchestrator/core.mjs"
 
 echo "Orchestrator smoke test passed."

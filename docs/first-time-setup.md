@@ -16,11 +16,9 @@ bash <(curl -fsSL https://raw.githubusercontent.com/HieuCuteDangYeu/agent-harnes
 
 For the full setup, answer `Y` to Ponytail, Codex Web GPT, and agentmemory.
 
-Antigravity (`agy`) is optional. Codex is the primary coding host and repository orchestration uses its built-in subagents when they are available.
+If `agy` is installed, bootstrap also starts the Antigravity host runner from this normal terminal. That keeps Antigravity outside the Codex/Web sandbox.
 
 ## 3. Finish Codex hooks
-
-Run:
 
 ```bash
 codex
@@ -45,7 +43,7 @@ In the launcher:
 5. finish the connector setup shown by the launcher
 6. restart Codex
 
-Keep Codex Web GPT open while using a Web model. It is only the parent bridge; repository workers are Codex native subagents and optional `agy` tasks.
+Keep Codex Web GPT open while using a Web model. It is only the parent bridge.
 
 ## 5. Verify
 
@@ -53,14 +51,19 @@ Keep Codex Web GPT open while using a Web model. It is only the parent bridge; r
 agent-harness version
 agent-harness doctor .
 agent-harness memory status
+agent-harness agy status          # when using Antigravity
 agent-harness chatgpt-web status
 ```
 
-Memory data stays outside the project. On Linux the default is:
+Optional live Antigravity smoke test:
 
-```text
-~/.local/share/agentmemory
+```bash
+agent-harness agy doctor
 ```
+
+Run `agent-harness agy start` from a normal terminal after reboot if you want Antigravity workers.
+
+Memory data stays outside the project. On Linux the default is `~/.local/share/agentmemory`.
 
 ## Optional: create repository skills
 

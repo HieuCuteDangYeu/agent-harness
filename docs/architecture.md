@@ -13,7 +13,7 @@ internal task graph
  ↓
 shadow repository + isolated worktrees
  ├─ Codex native subagents
- └─ Antigravity (`agy`) workers
+ └─ host-side Antigravity runner → `agy`
  ↓
 deterministic verification + integration
  ↓
@@ -30,7 +30,7 @@ verified patch applied to caller worktree
 
 The parent orchestrator inspects the task, code, tests, relevant skills, and selective memory, then builds the smallest useful dependency graph.
 
-Codex tasks use Codex's built-in subagent tools. The harness does not launch nested `codex exec` processes.
+Codex tasks use Codex's built-in subagent tools. The harness never launches nested `codex exec` processes.
 
 ## Harness helper
 
@@ -41,7 +41,7 @@ It:
 - snapshots the caller's committed, modified, deleted, and untracked non-ignored files into a temporary shadow repository
 - creates one isolated worktree per task
 - prints the exact task packet for native Codex subagents
-- launches `agy` only for Antigravity-assigned tasks
+- hands Antigravity tasks to the host-side `agy` runner
 - runs declared verification commands itself
 - commits and integrates successful task worktrees
 - blocks dependents after failures or merge conflicts
@@ -53,17 +53,29 @@ The caller repository's `.git` directory is not used for orchestration branches 
 
 ## Codex native subagents
 
-Native Codex subagents are the Codex execution primitive. They inherit the parent host/session instead of starting another Codex CLI runtime.
+Native Codex subagents inherit the parent host/session instead of starting another Codex CLI runtime.
 
 Each subagent receives an absolute temporary worktree path and must work only there. The parent uses native wait/message/close tools to manage its lifecycle, while the harness helper verifies and integrates the result afterward.
 
-This avoids nested Codex runtime state, SQLite, AppImage, and sandbox compatibility workarounds.
+## Antigravity host runner
 
-## Antigravity
+Launching `agy` directly from the Web/Codex sandbox can break Antigravity's language-server files, localhost listeners, and device access even when `agy` works normally in the user's terminal.
 
-Antigravity remains an external executor through `agy`. It is useful for independent UI-oriented work, focused tests, or secondary implementation/review.
+The harness therefore starts a small detached host runner from the normal terminal during setup. Antigravity jobs are exchanged through a private per-user queue under the system temporary directory.
 
-If `agy` is not installed, the orchestrator simply avoids assigning Antigravity tasks.
+```text
+Codex/Web sandbox
+      ↓ job packet
+private local queue
+      ↓
+host-side runner
+      ↓
+agy in isolated task worktree
+```
+
+The runner preserves the user's normal Antigravity authentication and host runtime. Jobs are idempotent per orchestration task so a Web disconnect or command timeout does not create duplicate Antigravity workers.
+
+Codex and `agy` are separate executors. The harness does not silently cross-fallback when one fails.
 
 ## Runtime integrations
 
@@ -95,5 +107,6 @@ explicit task requirements
 - task subagents must not recursively delegate
 - never run the same implementation task in two places at once
 - verification is executed by the harness helper, not trusted from agent self-reports
+- Antigravity write-capable automation runs only in disposable task worktrees
 - remote push/merge stays under user control
 - simplicity must not remove auth, validation, transactions, idempotency, concurrency, data integrity, security, or accessibility controls
