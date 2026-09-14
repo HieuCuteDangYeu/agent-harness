@@ -96,7 +96,7 @@ export function submitAgyJob({ cwd, prompt, model = null, approval = null, timeo
   }
   const safeCwd = validateAgyCwd(cwd, taskId);
   if (typeof prompt !== 'string' || !prompt.trim()) throw new Error('agy job prompt is required');
-  if (approval === 'yolo' && process.env.AGENT_HARNESS_AGY_ALLOW_YOLO !== '1') {
+  if (approval === 'yolo' && runner.allowYolo !== true) {
     throw new Error('agy yolo mode is disabled; explicitly opt in when starting the host runner with AGENT_HARNESS_AGY_ALLOW_YOLO=1');
   }
   ensureQueue();
