@@ -3,7 +3,7 @@ import { createWriteStream, mkdirSync, readFileSync, writeFileSync } from 'node:
 import path from 'node:path';
 
 export const TASK_ID_RE = /^[A-Za-z0-9][A-Za-z0-9._-]*$/;
-export const SUPPORTED_AGENTS = new Set(['codex', 'gemini']);
+export const SUPPORTED_AGENTS = new Set(['codex', 'agy']);
 
 export function die(message, code = 2) {
   console.error(`ERROR   ${message}`);
@@ -40,11 +40,9 @@ export function commandExists(command) {
 export function resolveAgent(requested) {
   if (requested === 'codex') {
     if (commandExists('codex')) return 'codex';
-    if (commandExists('gemini')) return 'gemini';
     if (commandExists('agy')) return 'agy';
   }
-  if (requested === 'gemini') {
-    if (commandExists('gemini')) return 'gemini';
+  if (requested === 'agy') {
     if (commandExists('agy')) return 'agy';
     if (commandExists('codex')) return 'codex';
   }
@@ -52,7 +50,7 @@ export function resolveAgent(requested) {
 }
 
 export function usage() {
-  console.log(`agent-harness orchestrate start <plan.json>\nagent-harness orchestrate status [run-id|latest]\nagent-harness orchestrate logs [run-id|latest] [lines]\nagent-harness orchestrate <plan.json> [options]\nagent-harness orchestrate example\n\nNormal orchestrator use:\n  start                   Snapshot the current worktree into an isolated temporary repo and run detached.\n                          Existing committed, modified, deleted, and untracked non-ignored files become the baseline.\n                          The final verified patch is applied back to the caller worktree without writing caller .git metadata.\n  status                  Read durable run state without waiting on the agent process.\n  logs                    Tail the dispatcher log.\n\nForeground/debug options:\n  --dry-run               Validate and print the graph without running agents.\n  --max-parallel <n>      Override plan.maxParallel (default 2, max 8).\n  --keep-worktrees        Keep temporary worktrees for debugging.\n  --allow-dirty           Foreground only: ignore caller-worktree changes; they are NOT included.\n\nLogical agent roles are codex and gemini. At runtime the dispatcher prefers the requested\nexecutor, uses Antigravity (agy) for the gemini role when available, and falls back to the\nother installed executor when necessary.\n\nExecution is local-only. Detached mode avoids caller .git writes, runs agents in isolated\nworktrees, verifies tasks, integrates successful work, performs final review, and applies\nonly the verified result patch back to the caller worktree. It never pushes or merges remotely.`);
+  console.log(`agent-harness orchestrate start <plan.json>\nagent-harness orchestrate status [run-id|latest]\nagent-harness orchestrate logs [run-id|latest] [lines]\nagent-harness orchestrate <plan.json> [options]\nagent-harness orchestrate example\n\nNormal orchestrator use:\n  start                   Snapshot the current worktree into an isolated temporary repo and run detached.\n                          Existing committed, modified, deleted, and untracked non-ignored files become the baseline.\n                          The final verified patch is applied back to the caller worktree without writing caller .git metadata.\n  status                  Read durable run state without waiting on the agent process.\n  logs                    Tail the dispatcher log.\n\nForeground/debug options:\n  --dry-run               Validate and print the graph without running agents.\n  --max-parallel <n>      Override plan.maxParallel (default 2, max 8).\n  --keep-worktrees        Keep temporary worktrees for debugging.\n  --allow-dirty           Foreground only: ignore caller-worktree changes; they are NOT included.\n\nSupported executors are codex and agy (Antigravity). The dispatcher prefers the\nrequested executor and falls back to the other installed executor when necessary.\n\nExecution is local-only. Detached mode avoids caller .git writes, runs agents in isolated\nworktrees, verifies tasks, integrates successful work, performs final review, and applies\nonly the verified result patch back to the caller worktree. It never pushes or merges remotely.`);
 }
 
 export function examplePlan() {
@@ -64,7 +62,7 @@ export function examplePlan() {
     maxParallel: 2,
     tasks: [
       { id: 'implementation', agent: 'codex', prompt: 'Implement the requested behavior.', dependsOn: [], acceptanceCriteria: ['Required behavior is implemented'], verify: ['pnpm test'] },
-      { id: 'tests', agent: 'gemini', prompt: 'Add focused tests for the requested behavior.', dependsOn: ['implementation'], acceptanceCriteria: ['Tests cover important paths'], verify: ['pnpm test'] },
+      { id: 'tests', agent: 'agy', prompt: 'Add focused tests for the requested behavior.', dependsOn: ['implementation'], acceptanceCriteria: ['Tests cover important paths'], verify: ['pnpm test'] },
     ],
     review: { agent: 'codex', prompt: 'Focus on architecture, security, concurrency, and missing tests.' },
   }, null, 2));
@@ -113,7 +111,7 @@ export function validatePlan(plan, overrideParallel) {
     if (typeof task.id !== 'string' || !TASK_ID_RE.test(task.id)) die(`invalid task id: ${JSON.stringify(task.id)}`);
     if (ids.has(task.id)) die(`duplicate task id: ${task.id}`);
     ids.add(task.id);
-    if (!SUPPORTED_AGENTS.has(task.agent)) die(`task ${task.id} agent must be codex or gemini`);
+    if (!SUPPORTED_AGENTS.has(task.agent)) die(`task ${task.id} agent must be codex or agy`);
     if (typeof task.prompt !== 'string' || !task.prompt.trim()) die(`task ${task.id} prompt is required`);
     task.dependsOn = stringArray(task.dependsOn, 'dependsOn', task.id);
     task.acceptanceCriteria = stringArray(task.acceptanceCriteria, 'acceptanceCriteria', task.id);
@@ -141,7 +139,7 @@ export function validatePlan(plan, overrideParallel) {
   for (const task of plan.tasks) visit(task.id);
   if (plan.review !== undefined) {
     if (!plan.review || typeof plan.review !== 'object' || Array.isArray(plan.review)) die('plan.review must be an object');
-    if (!SUPPORTED_AGENTS.has(plan.review.agent)) die('plan.review.agent must be codex or gemini');
+    if (!SUPPORTED_AGENTS.has(plan.review.agent)) die('plan.review.agent must be codex or agy');
     if (plan.review.prompt !== undefined && typeof plan.review.prompt !== 'string') die('plan.review.prompt must be a string');
     if (plan.review.model !== undefined && typeof plan.review.model !== 'string') die('plan.review.model must be a string');
     if (plan.review.approval !== undefined && !['auto-edit', 'yolo'].includes(plan.review.approval)) die('plan.review.approval must be auto-edit or yolo');
@@ -239,17 +237,5 @@ export async function invokeAgent(agent, { cwd, prompt, model, approval, logFile
     return result;
   }
 
-  const mode = approval === 'yolo' ? 'yolo' : 'auto_edit';
-  const args = ['--approval-mode', mode, '--output-format', 'text'];
-  if (model) args.push('--model', model);
-  args.push('--prompt', prompt);
-  const result = await runProcess('gemini', args, {
-    cwd,
-    logFile,
-    label: taskId,
-    env: { AGENT_HARNESS_TASK_ID: taskId },
-    displayCommand: `gemini --approval-mode ${mode}${model ? ` --model ${shellQuote(model)}` : ''} --output-format text --prompt '[task packet omitted]'`,
-  });
-  writeFileSync(resultFile, result.stdout || '', 'utf8');
-  return result;
+  return { code: 127, error: `unsupported agent: ${agent}`, stdout: '', stderr: '' };
 }
