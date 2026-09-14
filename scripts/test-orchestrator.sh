@@ -37,7 +37,7 @@ fi
 MOCK
 chmod +x "$MOCK_BIN/agy"
 
-PATH="$MOCK_BIN:$PATH" AGENT_HARNESS_AGY_QUEUE_DIR="$QUEUE_DIR" \
+PATH="$MOCK_BIN:$PATH" AGENT_HARNESS_STATE_DIR="$STATE_DIR" AGENT_HARNESS_AGY_QUEUE_DIR="$QUEUE_DIR" \
   node "$ROOT/scripts/agy-runner.mjs" serve >"$RUNNER_LOG" 2>&1 &
 RUNNER_PID=$!
 for _ in $(seq 1 50); do
@@ -45,6 +45,20 @@ for _ in $(seq 1 50); do
   sleep 0.1
 done
 test -f "$QUEUE_DIR/runner.json"
+
+# Host runner rejects arbitrary filesystem escape jobs before launching agy.
+mkdir -p "$QUEUE_DIR/pending"
+cat > "$QUEUE_DIR/pending/escape.json" <<JSON
+{"version":1,"id":"escape","cwd":"$REPO","prompt":"write outside harness state","taskId":"escape","timeout":"30s"}
+JSON
+for _ in $(seq 1 50); do
+  [[ -f "$QUEUE_DIR/results/escape.json" ]] && break
+  sleep 0.1
+done
+test -f "$QUEUE_DIR/results/escape.json"
+grep -q '"status": "failed"' "$QUEUE_DIR/results/escape.json"
+grep -q 'only inside agent-harness state' "$QUEUE_DIR/results/escape.json"
+test ! -e "$REPO/task-escape.txt"
 
 cat > "$REPO/plan.json" <<'JSON'
 {
@@ -54,7 +68,7 @@ cat > "$REPO/plan.json" <<'JSON'
   "maxParallel": 2,
   "tasks": [
     {"id":"a","agent":"codex","prompt":"make a","verify":["test -f task-a.txt"]},
-    {"id":"b","agent":"agy","prompt":"make b","dependsOn":["a"],"approval":"yolo","verify":["test -f task-a.txt && test -f task-b.txt"]}
+    {"id":"b","agent":"agy","prompt":"make b","dependsOn":["a"],"verify":["test -f task-a.txt && test -f task-b.txt"]}
   ],
   "review": {"agent":"codex","prompt":"review the integrated result"}
 }
@@ -135,5 +149,6 @@ fi
 ! grep -q "spawn('agy'" "$ROOT/scripts/orchestrator/core.mjs"
 grep -q "spawn('agy'" "$ROOT/scripts/agy-runner.mjs"
 grep -q 'submitAgyJob' "$ROOT/scripts/orchestrator/core.mjs"
+grep -q 'validateAgyCwd' "$ROOT/scripts/agy-runner.mjs"
 
 echo "Orchestrator smoke test passed."
