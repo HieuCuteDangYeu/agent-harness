@@ -32,19 +32,19 @@ export function commandExists(command) {
 }
 
 export function usage() {
-  console.log(`agent-harness orchestrate <plan.json> [options]\nagent-harness orchestrate example\n\nOptions:\n  --dry-run             Validate and print the graph without running agents.\n  --max-parallel <n>    Override plan.maxParallel (default 2, max 8).\n  --keep-worktrees      Keep temporary worktrees for debugging.\n  --allow-dirty         Ignore caller-worktree changes; they are NOT included.\n\nExecution is local-only: the harness creates an integration branch and isolated\nworktrees, runs assigned agents, verifies tasks, schedules dependencies, merges\nsuccessful task commits into the integration branch, and optionally runs a final\nreview. It never pushes or merges to a remote automatically.`);
+  console.log(`agent-harness orchestrate start <plan.json>\nagent-harness orchestrate status [run-id|latest]\nagent-harness orchestrate logs [run-id|latest] [lines]\nagent-harness orchestrate <plan.json> [options]\nagent-harness orchestrate example\n\nNormal orchestrator use:\n  start                   Run the dispatcher detached so ChatGPT/Web tool waits cannot cancel or duplicate it.\n  status                  Read durable run state without waiting on the agent process.\n  logs                    Tail the dispatcher log.\n\nForeground/debug options:\n  --dry-run               Validate and print the graph without running agents.\n  --max-parallel <n>      Override plan.maxParallel (default 2, max 8).\n  --keep-worktrees        Keep temporary worktrees for debugging.\n  --allow-dirty           Ignore caller-worktree changes; they are NOT included.\n\nExecution is local-only: the harness creates an integration branch and isolated\nworktrees, runs assigned agents, verifies tasks, schedules dependencies, merges\nsuccessful task commits into the integration branch, and optionally runs a final\nreview. It never pushes or merges to a remote automatically.`);
 }
 
 export function examplePlan() {
   console.log(JSON.stringify({
     version: 1,
-    name: 'issue-142',
+    name: 'feature-change',
     goal: 'Implement the requested feature with independent work where safe.',
     base: 'HEAD',
     maxParallel: 2,
     tasks: [
-      { id: 'backend', agent: 'codex', prompt: 'Implement the backend behavior from the issue.', dependsOn: [], acceptanceCriteria: ['Required behavior is implemented'], verify: ['pnpm test --filter backend'] },
-      { id: 'tests', agent: 'gemini', prompt: 'Add focused tests for the requested behavior.', dependsOn: ['backend'], acceptanceCriteria: ['Tests cover important paths'], verify: ['pnpm test --filter backend'] },
+      { id: 'implementation', agent: 'codex', prompt: 'Implement the requested behavior.', dependsOn: [], acceptanceCriteria: ['Required behavior is implemented'], verify: ['pnpm test'] },
+      { id: 'tests', agent: 'gemini', prompt: 'Add focused tests for the requested behavior.', dependsOn: ['implementation'], acceptanceCriteria: ['Tests cover important paths'], verify: ['pnpm test'] },
     ],
     review: { agent: 'codex', prompt: 'Focus on architecture, security, concurrency, and missing tests.' },
   }, null, 2));
@@ -137,13 +137,13 @@ function section(title, items) {
 }
 
 export function taskPrompt(plan, task) {
-  return `You are an implementation executor launched by agent-harness.\n\nRead AGENTS.md and only repository skills relevant to this task before editing.\nFollow existing architecture and conventions. Make the smallest complete change.\nDo not push, merge, create a PR, or modify files outside this worktree.\n\nPlan goal:\n${plan.goal}\n\nAssigned task (${task.id}):\n${task.prompt}\n${section('Dependencies already integrated', task.dependsOn)}${section('Acceptance criteria', task.acceptanceCriteria)}${section('Constraints', task.constraints)}${section('Non-goals', task.nonGoals)}${section('Harness verification after you finish', task.verify)}\nInspect your diff before completion and leave the worktree ready to commit. You may commit, but it is not required.`;
+  return `You are an implementation executor launched by agent-harness.\n\nRead AGENTS.md and only repository skills relevant to this task before editing.\nFollow existing architecture and conventions. Make the smallest complete change.\nDo not create, delegate to, or wait for additional agents; you are the assigned executor.\nDo not push, merge, create a PR, or modify files outside this worktree.\n\nPlan goal:\n${plan.goal}\n\nAssigned task (${task.id}):\n${task.prompt}\n${section('Dependencies already integrated', task.dependsOn)}${section('Acceptance criteria', task.acceptanceCriteria)}${section('Constraints', task.constraints)}${section('Non-goals', task.nonGoals)}${section('Harness verification after you finish', task.verify)}\nInspect your diff before completion and leave the worktree ready to commit. You may commit, but it is not required.`;
 }
 
 export function reviewPrompt(plan, baseRef) {
   const tasks = plan.tasks.map((task) => `- ${task.id}: ${task.prompt}`).join('\n');
   const extra = plan.review?.prompt ? `\nAdditional review focus:\n${plan.review.prompt}\n` : '';
-  return `Act as the final reviewer for an automatically integrated multi-agent change.\n\nDO NOT modify files. Review the current branch against base ${baseRef}.\nInspect the actual diff and relevant tests. Check correctness, architecture, security, concurrency/data integrity, compatibility, and meaningful test coverage.\n\nPlan goal:\n${plan.goal}\n\nExecuted tasks:\n${tasks}\n${extra}\nEnd with exactly one line:\nVERDICT: PASS\nor\nVERDICT: BLOCK\n\nUse BLOCK only for a concrete merge-blocking issue.`;
+  return `Act as the final reviewer for an automatically integrated multi-agent change.\n\nDO NOT modify files. Do not create or delegate to additional agents. Review the current branch against base ${baseRef}.\nInspect the actual diff and relevant tests. Check correctness, architecture, security, concurrency/data integrity, compatibility, and meaningful test coverage.\n\nPlan goal:\n${plan.goal}\n\nExecuted tasks:\n${tasks}\n${extra}\nEnd with exactly one line:\nVERDICT: PASS\nor\nVERDICT: BLOCK\n\nUse BLOCK only for a concrete merge-blocking issue.`;
 }
 
 export async function runProcess(command, args, { cwd, input = null, env = {}, logFile, label, displayCommand = null }) {

@@ -65,6 +65,7 @@ JSON
 git -C "$REPO" add plan.json
 git -C "$REPO" commit -qm plan
 
+# Foreground execution remains available for manual/debug use.
 (
   cd "$REPO"
   PATH="$MOCK_BIN:$PATH" node "$ROOT/scripts/orchestrate.mjs" plan.json --dry-run >/dev/null
@@ -88,8 +89,29 @@ if (summary.review?.verdict !== 'PASS') process.exit(1);
 if (summary.tasks.some((task) => task.status !== 'success')) process.exit(1);
 NODE
 
+# Normal orchestrator execution is detached and observable through durable state.
+START_OUTPUT="$(cd "$REPO" && PATH="$MOCK_BIN:$PATH" node "$ROOT/scripts/orchestrate.mjs" start plan.json)"
+RUN_ID="$(printf '%s\n' "$START_OUTPUT" | sed -n 's/^RUN     //p')"
+test -n "$RUN_ID"
+printf '%s\n' "$START_OUTPUT" | grep -q '^STATUS  started$'
+
+STATUS_OUTPUT=""
+for _ in $(seq 1 100); do
+  STATUS_OUTPUT="$(cd "$REPO" && PATH="$MOCK_BIN:$PATH" node "$ROOT/scripts/orchestrate.mjs" status "$RUN_ID")"
+  if printf '%s\n' "$STATUS_OUTPUT" | grep -q '^STATUS  success$'; then
+    break
+  fi
+  sleep 0.05
+done
+printf '%s\n' "$STATUS_OUTPUT" | grep -q '^STATUS  success$'
+printf '%s\n' "$STATUS_OUTPUT" | grep -q '^REVIEW  success verdict=PASS$'
+
+DETACHED_STATE="$(printf '%s\n' "$STATUS_OUTPUT" | sed -n 's/^STATE   //p')"
+test -f "$DETACHED_STATE/summary.json"
+test -f "$DETACHED_STATE/orchestrator.log"
+(cd "$REPO" && node "$ROOT/scripts/orchestrate.mjs" logs "$RUN_ID" 20) | grep -q '^RESULT  success$'
+
 # Runtime state belongs under .git and must not pollute the working tree.
-test -f "$STATE/summary.json"
 test -z "$(git -C "$REPO" status --porcelain)"
 
 echo "Orchestrator smoke test passed."
