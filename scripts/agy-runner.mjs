@@ -3,7 +3,7 @@ import { spawn } from 'node:child_process';
 import { existsSync, mkdirSync, readFileSync, readdirSync, renameSync, rmSync, writeFileSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { agyQueueRoot } from './orchestrator/agy-client.mjs';
+import { agyQueueRoot, harnessStateRoot, validateAgyCwd } from './orchestrator/agy-client.mjs';
 
 const queueRoot = agyQueueRoot();
 const dirs = Object.fromEntries(['pending', 'running', 'results', 'logs'].map((name) => [name, path.join(queueRoot, name)]));
@@ -30,6 +30,8 @@ function writeHeartbeat() {
     pid: process.pid,
     host: os.hostname(),
     startedBy: process.env.USER || null,
+    stateRoot: harnessStateRoot(),
+    allowYolo: process.env.AGENT_HARNESS_AGY_ALLOW_YOLO === '1',
     updatedAt: new Date().toISOString(),
   }, null, 2)}\n`, { encoding: 'utf8', mode: 0o600 });
 }
@@ -43,6 +45,25 @@ function safeJson(line) {
   catch { return null; }
 }
 
+function writeRejectedResult(job, resultFile, error, startedAt) {
+  writeFileSync(resultFile, `${JSON.stringify({
+    version: 1,
+    id: job.id || null,
+    taskId: job.taskId || null,
+    status: 'failed',
+    code: 2,
+    signal: null,
+    error,
+    agyStatus: null,
+    response: null,
+    stderrTail: '',
+    stdoutTail: '',
+    logFile: null,
+    startedAt,
+    finishedAt: new Date().toISOString(),
+  }, null, 2)}\n`, { encoding: 'utf8', mode: 0o600 });
+}
+
 async function runJob(jobFile) {
   const name = path.basename(jobFile);
   const runningFile = path.join(dirs.running, name);
@@ -52,11 +73,24 @@ async function runJob(jobFile) {
   const job = readJson(runningFile);
   const logFile = path.join(dirs.logs, `${job.id}.log`);
   const resultFile = path.join(dirs.results, `${job.id}.json`);
+  const startedAt = new Date().toISOString();
+
+  let safeCwd;
+  try {
+    safeCwd = validateAgyCwd(job.cwd, job.taskId || 'agy-task');
+    if (job.approval === 'yolo' && process.env.AGENT_HARNESS_AGY_ALLOW_YOLO !== '1') {
+      throw new Error('agy yolo mode is disabled on this host runner');
+    }
+  } catch (error) {
+    writeRejectedResult(job, resultFile, error.message, startedAt);
+    rmSync(runningFile, { force: true });
+    return;
+  }
+
   const args = ['--print', job.prompt, '--print-timeout', job.timeout || '15m', '--output-format', 'stream-json'];
   if (job.model) args.push('--model', job.model);
   if (job.approval === 'yolo') args.push('--dangerously-skip-permissions');
 
-  const startedAt = new Date().toISOString();
   let stdoutBuffer = '';
   let stderrTail = '';
   let finalEvent = null;
@@ -65,7 +99,7 @@ async function runJob(jobFile) {
     let settled = false;
     let streamBuffer = '';
     const child = spawn('agy', args, {
-      cwd: job.cwd,
+      cwd: safeCwd,
       env: { ...process.env, AGENT_HARNESS_TASK_ID: job.taskId || 'agy-task' },
       stdio: ['ignore', 'pipe', 'pipe'],
     });
