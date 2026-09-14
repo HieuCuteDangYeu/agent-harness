@@ -7,6 +7,8 @@ You
  ↓
 ChatGPT Web orchestrator
  ↓
+repository-orchestrator skill
+ ↓
 internal task graph
  ↓
 detached agent-harness dispatcher
@@ -24,9 +26,9 @@ local integration branch
 
 ## Orchestrator
 
-The orchestrator reads the request, repository, `AGENTS.md`, relevant skills, and selective memory. It creates the smallest useful task graph.
+`AGENTS.md` is the routing layer. When orchestration is requested, it activates `.agents/skills/repository-orchestrator/SKILL.md`.
 
-It does not directly spawn native sub-agents for repository execution. It starts the dispatcher and polls durable state under `.git/agent-harness/`.
+The skill reads the request, repository, relevant skills, and selective memory, then creates the smallest useful task graph. It does not directly spawn native sub-agents for repository execution; it starts the dispatcher and polls durable state under `.git/agent-harness/`.
 
 This prevents bounded ChatGPT/Codex command waits from causing duplicate fallback implementations while agents are still running.
 
@@ -58,7 +60,9 @@ It never pushes or merges remotely by itself.
 
 ## Repository skills
 
-`.agents/skills/` stores durable project-specific knowledge. `skill-maintenance` updates it only when stable architecture, security, persistence, messaging, operational, or domain rules change.
+`.agents/skills/` stores task workflows and durable project-specific knowledge.
+
+`repository-orchestrator` is the harness execution workflow. `skill-maintenance` keeps repository-specific skills aligned only when stable architecture, security, persistence, messaging, operational, or domain rules change.
 
 ## Authority
 
