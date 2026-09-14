@@ -22,6 +22,7 @@ fi
 test -x "$TMP/scripts/agents/create-worktree.sh"
 test -f "$TMP/.agents/skills/repository-orchestrator/SKILL.md"
 grep -q 'agent-harness orchestrate start' "$TMP/.agents/skills/repository-orchestrator/SKILL.md"
+grep -q 'Do \*\*not\*\* launch `codex-web-gpt` as an executor' "$TMP/.agents/skills/repository-orchestrator/SKILL.md"
 test -f "$TMP/.agents/skills/shared-memory/SKILL.md"
 grep -q 'agentmemory' "$TMP/.agents/skills/shared-memory/SKILL.md"
 grep -q '^## Repository orchestration' "$TMP/AGENTS.md"
@@ -45,6 +46,12 @@ test "$("$ROOT/bin/agent-harness" version)" = "$(cat "$ROOT/VERSION")"
 grep -q "SUPPORTED_AGENTS = new Set(\['codex', 'agy'\])" "$ROOT/scripts/orchestrator/core.mjs"
 ! grep -q "command -v gemini" "$ROOT/scripts/setup/install-ponytail.sh"
 ! grep -q "connect gemini-cli" "$ROOT/scripts/setup/install-agentmemory.sh"
+
+# Codex workers must not depend on writable ~/.codex runtime state inside the
+# outer ChatGPT/Codex sandbox.
+grep -q 'CODEX_SQLITE_HOME: runtime.codexSqlite' "$ROOT/scripts/orchestrator/core.mjs"
+grep -q "'--ephemeral'" "$ROOT/scripts/orchestrator/core.mjs"
+grep -q 'XDG_RUNTIME_DIR: runtime.xdgRuntime' "$ROOT/scripts/orchestrator/core.mjs"
 
 mkdir -p "$TMP/docs"
 printf '%s\n' 'project-owned orchestration notes' > "$TMP/docs/agent-orchestrator.md"
@@ -82,6 +89,7 @@ grep -q 'current orchestration routing' "$ROOT/bootstrap.sh"
 grep -q 'OLD_ORCHESTRATOR_SKILL_BLOBS' "$ROOT/bootstrap.sh"
 grep -q 'b8c258d37ec997437e161aa9ea148290b5715a10' "$ROOT/bootstrap.sh"
 grep -q 'bad3fbc6f77b2ef7f1c1448c85b36a7ae13b378e' "$ROOT/bootstrap.sh"
+grep -q 'fdd49c1743c6c7866cb43ea9b3f88771f95e30b0' "$ROOT/bootstrap.sh"
 grep -q 'current dispatcher runtime' "$ROOT/bootstrap.sh"
 
 grep -q 'remove_generated_orchestrator_doc' "$ROOT/bin/agent-harness"
