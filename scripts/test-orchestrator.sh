@@ -22,6 +22,13 @@ cat > "$MOCK_BIN/codex" <<'MOCK'
 set -euo pipefail
 result=""
 seen_approval=0
+seen_ephemeral=0
+[[ -n "${CODEX_SQLITE_HOME:-}" && -d "$CODEX_SQLITE_HOME" && -w "$CODEX_SQLITE_HOME" ]]
+[[ -n "${XDG_RUNTIME_DIR:-}" && -d "$XDG_RUNTIME_DIR" && -w "$XDG_RUNTIME_DIR" ]]
+case "$CODEX_SQLITE_HOME" in
+  */runtime/*/codex-sqlite) ;;
+  *) echo "Codex SQLite state was not redirected into executor runtime" >&2; exit 92 ;;
+esac
 while (($#)); do
   case "$1" in
     --approve-for-me)
@@ -33,6 +40,10 @@ while (($#)); do
       seen_approval=1
       shift 2
       ;;
+    --ephemeral)
+      seen_ephemeral=1
+      shift
+      ;;
     --output-last-message)
       result="$2"
       shift 2
@@ -41,6 +52,7 @@ while (($#)); do
   esac
 done
 [[ "$seen_approval" -eq 1 ]]
+[[ "$seen_ephemeral" -eq 1 ]]
 cat >/dev/null || true
 if [[ "${AGENT_HARNESS_TASK_ID:-}" == "review" ]]; then
   printf 'Review complete.\nVERDICT: PASS\n' > "$result"
@@ -54,6 +66,11 @@ chmod +x "$MOCK_BIN/codex"
 cat > "$MOCK_BIN/agy" <<'MOCK'
 #!/usr/bin/env bash
 set -euo pipefail
+[[ -n "${XDG_RUNTIME_DIR:-}" && -d "$XDG_RUNTIME_DIR" && -w "$XDG_RUNTIME_DIR" ]]
+case "$XDG_RUNTIME_DIR" in
+  */runtime/*/xdg-runtime) ;;
+  *) echo "Antigravity runtime was not isolated" >&2; exit 93 ;;
+esac
 printf '%s\n' "$AGENT_HARNESS_TASK_ID" > "task-$AGENT_HARNESS_TASK_ID.txt"
 printf 'done\n'
 MOCK
@@ -63,7 +80,7 @@ cat > "$REPO/plan.json" <<'JSON'
 {
   "version": 1,
   "name": "smoke",
-  "goal": "prove dependency scheduling, codex/agy execution, and integration",
+  "goal": "prove dependency scheduling, codex/agy execution, runtime isolation, and integration",
   "base": "HEAD",
   "maxParallel": 2,
   "tasks": [
@@ -134,6 +151,7 @@ DETACHED_STATE="$(printf '%s\n' "$STATUS_OUTPUT" | sed -n 's/^STATE   //p')"
 test -f "$DETACHED_STATE/summary.json"
 test -f "$DETACHED_STATE/orchestrator.log"
 test -f "$DETACHED_STATE/result.patch"
+test -d "$DETACHED_STATE/runtime"
 (cd "$REPO" && AGENT_HARNESS_STATE_DIR="$STATE_DIR" node "$ROOT/scripts/orchestrate.mjs" logs "$RUN_ID" 40) | grep -q '^RESULT  success$'
 
 test -f "$REPO/local-dirty.txt"
