@@ -3,7 +3,7 @@ set -euo pipefail
 
 HARNESS_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 STATE_ROOT="${XDG_STATE_HOME:-$HOME/.local/state}/agent-harness/agy"
-QUEUE_ROOT="${AGENT_HARNESS_AGY_QUEUE_DIR:-${TMPDIR:-/tmp}/agent-harness-agy-$(id -u)}"
+QUEUE_ROOT="${AGENT_HARNESS_AGY_QUEUE_DIR:-/tmp/agent-harness-agy-$(id -u)}"
 PID_FILE="$STATE_ROOT/runner.pid"
 LOG_FILE="$STATE_ROOT/runner.log"
 RUNNER="$HARNESS_ROOT/scripts/agy-runner.mjs"
