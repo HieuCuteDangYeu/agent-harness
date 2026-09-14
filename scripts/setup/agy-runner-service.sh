@@ -79,45 +79,28 @@ doctor() {
     echo "ERROR   agy host runner is not running. Start it from a normal terminal with: agent-harness agy start" >&2
     return 1
   }
-  local job_file job_id result_file response status_value
+  local job_id result_file status_value response
   job_id="doctor-$(date +%s)-$$"
-  job_file="$QUEUE_ROOT/pending/$job_id.json"
   result_file="$QUEUE_ROOT/results/$job_id.json"
   mkdir -p "$QUEUE_ROOT/pending" "$QUEUE_ROOT/results"
-  python3 - "$job_file" "$job_id" "$PWD" <<'PY'
-import json, os, sys
-path, job_id, cwd = sys.argv[1:]
-job = {
-  "version": 1,
-  "id": job_id,
-  "cwd": cwd,
-  "prompt": "Reply exactly AGY_OK",
-  "model": None,
-  "approval": None,
-  "timeout": "30s",
-  "taskId": "doctor",
-}
-with open(path, "w", encoding="utf-8") as f:
-  json.dump(job, f)
-  f.write("\n")
-os.chmod(path, 0o600)
-PY
+  node - "$QUEUE_ROOT/pending/$job_id.json" "$job_id" "$PWD" <<'NODE'
+const fs = require('fs');
+const [file, id, cwd] = process.argv.slice(2);
+fs.writeFileSync(file, JSON.stringify({
+  version: 1,
+  id,
+  cwd,
+  prompt: 'Reply exactly AGY_OK',
+  model: null,
+  approval: null,
+  timeout: '30s',
+  taskId: 'doctor',
+}, null, 2) + '\n', { mode: 0o600 });
+NODE
   for _ in $(seq 1 180); do
     if [[ -f "$result_file" ]]; then
-      status_value="$(python3 - "$result_file" <<'PY'
-import json, sys
-with open(sys.argv[1], encoding='utf-8') as f:
-  data=json.load(f)
-print(data.get('status',''))
-PY
-)"
-      response="$(python3 - "$result_file" <<'PY'
-import json, sys
-with open(sys.argv[1], encoding='utf-8') as f:
-  data=json.load(f)
-print((data.get('response') or '').strip())
-PY
-)"
+      status_value="$(node -e 'const d=require(process.argv[1]); process.stdout.write(d.status||"")' "$result_file")"
+      response="$(node -e 'const d=require(process.argv[1]); process.stdout.write((d.response||"").trim())' "$result_file")"
       rm -f "$result_file"
       if [[ "$status_value" == "success" && "$response" == "AGY_OK" ]]; then
         echo "OK      agy host runner smoke test passed"
