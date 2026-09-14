@@ -25,23 +25,15 @@ if command -v agy >/dev/null 2>&1; then
     warn "Antigravity Ponytail install returned non-zero; inspect the CLI output."
   fi
   installed=1
-elif command -v gemini >/dev/null 2>&1; then
-  echo "Installing/updating Ponytail for Gemini CLI..."
-  if gemini extensions install https://github.com/DietrichGebert/ponytail; then
-    ok "Ponytail installed for Gemini CLI"
-  else
-    warn "Gemini Ponytail install returned non-zero; inspect the CLI output."
-  fi
-  installed=1
 fi
 
 if [[ "$installed" -eq 0 ]]; then
-  warn "No supported Codex/Antigravity/Gemini CLI detected; Ponytail was not installed."
+  warn "No supported Codex/Antigravity CLI detected; Ponytail was not installed."
   exit 0
 fi
 
 cat <<'NEXT'
 Ponytail requires a one-time trust/review step on some hosts:
 - Codex: open `/hooks`, review/trust the lifecycle hooks, then start a new thread.
-- Antigravity/Gemini: restart the agent if the extension was installed during an active session.
+- Antigravity: restart the agent if the plugin was installed during an active session.
 NEXT
