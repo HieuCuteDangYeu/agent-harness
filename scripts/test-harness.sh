@@ -26,9 +26,11 @@ test -f "$TMP/.agents/skills/skill-maintenance/SKILL.md"
 test -f "$TMP/.agents/skills/shared-memory/SKILL.md"
 
 grep -q 'Codex native subagents' "$TMP/AGENTS.md"
-grep -q 'Never launch a nested `codex exec` worker' "$TMP/AGENTS.md"
+grep -q 'host-side `agy` runner' "$TMP/AGENTS.md"
+grep -q 'Never silently fall back between Codex and `agy`' "$TMP/AGENTS.md"
 grep -q 'spawn_agent' "$TMP/.agents/skills/repository-orchestrator/SKILL.md"
-grep -q 'agent-harness orchestrate prepare' "$TMP/.agents/skills/repository-orchestrator/SKILL.md"
+grep -q 'agent-harness agy status' "$TMP/.agents/skills/repository-orchestrator/SKILL.md"
+grep -q 'host-side runner' "$TMP/.agents/skills/repository-orchestrator/SKILL.md"
 grep -q 'agentmemory' "$TMP/.agents/skills/shared-memory/SKILL.md"
 
 test ! -e "$TMP/docs/agent-orchestrator.md"
@@ -37,14 +39,17 @@ test ! -e "$ROOT/templates/scripts/agents/create-worktree.sh"
 test ! -e "$TMP/.github/ISSUE_TEMPLATE/agent-task.md"
 test ! -e "$TMP/.github/pull_request_template.md"
 
-# The helper owns Git/worktree state; Codex execution belongs to native subagents.
+# Codex execution belongs to native subagents; Antigravity execution belongs to the host runner.
 grep -q "SUPPORTED_AGENTS = new Set(\['codex', 'agy'\])" "$ROOT/scripts/orchestrator/core.mjs"
 ! grep -q "runProcess('codex'" "$ROOT/scripts/orchestrator/core.mjs"
 ! grep -q 'CODEX_SQLITE_HOME' "$ROOT/scripts/orchestrator/core.mjs"
 ! grep -q -- '--ephemeral' "$ROOT/scripts/orchestrator/core.mjs"
-test ! -e "$ROOT/scripts/orchestrator/executor.mjs"
-test ! -e "$ROOT/scripts/orchestrator/run.mjs"
-test ! -e "$ROOT/scripts/orchestrator/lifecycle.mjs"
+! grep -q "spawn('agy'" "$ROOT/scripts/orchestrator/core.mjs"
+grep -q "spawn('agy'" "$ROOT/scripts/agy-runner.mjs"
+grep -q 'submitAgyJob' "$ROOT/scripts/orchestrator/core.mjs"
+test -f "$ROOT/scripts/orchestrator/agy-client.mjs"
+test -f "$ROOT/scripts/setup/agy-runner-service.sh"
+test -f "$ROOT/scripts/agy-runner.mjs"
 test -f "$ROOT/scripts/orchestrator/session.mjs"
 
 # Old generated worktree helper is removed, but project-owned replacements survive.
@@ -70,16 +75,17 @@ AGENT_HARNESS_NONINTERACTIVE=1 "$ROOT/bin/agent-harness" ready "$TMP" --core-onl
 "$ROOT/bin/agent-harness" --help >/dev/null
 "$ROOT/bin/agent-harness" chatgpt-web --help >/dev/null
 "$ROOT/bin/agent-harness" memory --help >/dev/null
+HOME="$TMP/home" XDG_STATE_HOME="$TMP/state-home" "$ROOT/bin/agent-harness" agy queue-dir >/dev/null
 "$ROOT/bin/agent-memory" --help >/dev/null
 
 test "$("$ROOT/bin/agent-harness" version)" = "$(cat "$ROOT/VERSION")"
 
-# Bootstrap keeps the wrapper stable and migrates untouched v0.6.x generated contracts.
+# Bootstrap keeps the wrapper stable and migrates untouched generated contracts.
 grep -q 'rm -f "$BIN_DIR/agent-harness"' "$ROOT/bootstrap.sh"
 grep -q 'exec node %q' "$ROOT/bootstrap.sh"
-grep -q '690cc85979bf15c3aa99468a34f30618155b3fa8' "$ROOT/bootstrap.sh"
-grep -q 'bdbd44332809943b596dad4a85a11b073bfc7fa1' "$ROOT/bootstrap.sh"
-grep -q 'current native-subagent runtime' "$ROOT/bootstrap.sh"
+grep -q '74a3955795a1bc303bd03bcb173b56f99718ce19' "$ROOT/bootstrap.sh"
+grep -q '442d129575564554ed6a4f256cc31f114b35e7ae' "$ROOT/bootstrap.sh"
+grep -q 'current host-runner runtime' "$ROOT/bootstrap.sh"
 
 # Persistent memory must stay outside the repository.
 grep -q 'export AGENTMEMORY_DATA_DIR="$DATA_ROOT"' "$ROOT/scripts/setup/agentmemory-service.sh"
