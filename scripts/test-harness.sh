@@ -22,6 +22,9 @@ fi
 test -x "$TMP/scripts/agents/create-worktree.sh"
 test -f "$TMP/.agents/skills/shared-memory/SKILL.md"
 grep -q 'agentmemory' "$TMP/.agents/skills/shared-memory/SKILL.md"
+grep -q '^## Repository orchestration' "$TMP/AGENTS.md"
+grep -q 'docs/agent-orchestrator.md' "$TMP/AGENTS.md"
+grep -q 'Do not use native `create agent`' "$TMP/AGENTS.md"
 test ! -e "$TMP/scripts/agents/agent-memory"
 test ! -e "$TMP/.agent-harness-version"
 test ! -e "$TMP/.github/ISSUE_TEMPLATE/agent-task.md"
@@ -42,6 +45,7 @@ printf '%s\n' '# TencentDB Agent Memory legacy helper' > "$TMP/scripts/agents/ag
 grep -q '^MIGRATE ' "$MIGRATION_LOG"
 grep -q '^REMOVE  ' "$MIGRATION_LOG"
 grep -q 'agentmemory' "$TMP/AGENTS.md"
+grep -q '^## Repository orchestration' "$TMP/AGENTS.md"
 ! grep -q 'TencentDB Agent Memory' "$TMP/.agents/skills/shared-memory/SKILL.md"
 ! grep -q 'TencentDB Agent Memory' "$TMP/docs/agent-orchestrator.md"
 test ! -e "$TMP/scripts/agents/agent-memory"
@@ -53,6 +57,12 @@ AGENT_HARNESS_NONINTERACTIVE=1 \
 "$ROOT/bin/agent-harness" chatgpt-web --help >/dev/null
 "$ROOT/bin/agent-harness" memory --help >/dev/null
 "$ROOT/bin/agent-memory" --help >/dev/null
+
+# Bootstrap must migrate untouched generated AGENTS files so orchestration
+# requests are routed through the dispatcher instead of native agent delegation.
+grep -q 'OLD_AGENTS_BLOBS' "$ROOT/bootstrap.sh"
+grep -q '41adcfaf38b6ca2b8b9c2ec6005f4f75fb16832e' "$ROOT/bootstrap.sh"
+grep -q 'current orchestration routing' "$ROOT/bootstrap.sh"
 
 # Setup must delegate long-running agentmemory to the detached lifecycle helper.
 grep -q 'SERVICE_SCRIPT=.*agentmemory-service.sh' "$ROOT/scripts/setup/install-agentmemory.sh"
