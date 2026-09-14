@@ -190,7 +190,9 @@ ready_harness() {
   command -v codex >/dev/null 2>&1 && ok "Codex detected" || warn "Codex not detected"
   if command -v agy >/dev/null 2>&1; then
     ok "Antigravity CLI detected"
-    run_setup_script agy-runner-service.sh start || warn "Antigravity host runner could not start; run 'agent-harness agy doctor' from a normal terminal"
+    if [[ "$CORE_ONLY" -eq 0 ]]; then
+      run_setup_script agy-runner-service.sh restart || warn "Antigravity host runner could not start; run 'agent-harness agy doctor' from a normal terminal"
+    fi
   else
     warn "Antigravity CLI not detected (optional)"
   fi
