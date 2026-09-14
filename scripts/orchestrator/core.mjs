@@ -1,6 +1,5 @@
 import { spawn, spawnSync } from 'node:child_process';
-import { createWriteStream, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
-import path from 'node:path';
+import { createWriteStream, mkdirSync, readFileSync } from 'node:fs';
 
 export const TASK_ID_RE = /^[A-Za-z0-9][A-Za-z0-9._-]*$/;
 export const SUPPORTED_AGENTS = new Set(['codex', 'agy']);
@@ -32,13 +31,8 @@ export function git(args, { cwd, allowFailure = false, env = {} } = {}) {
   return { status: result.status ?? 1, stdout: (result.stdout || '').trim(), stderr: (result.stderr || '').trim() };
 }
 
-export function commandExists(command) {
-  const result = spawnSync('sh', ['-c', `command -v ${shellQuote(command)} >/dev/null 2>&1`], { env: process.env });
-  return result.status === 0;
-}
-
 export function usage() {
-  console.log(`agent-harness orchestrate prepare <plan.json>\nagent-harness orchestrate ready [run-id|latest]\nagent-harness orchestrate task <run-id|latest> <task-id>\nagent-harness orchestrate agy <run-id|latest> <task-id>\nagent-harness orchestrate complete <run-id|latest> <task-id>\nagent-harness orchestrate fail <run-id|latest> <task-id> [reason]\nagent-harness orchestrate review-task <run-id|latest>\nagent-harness orchestrate review-agy <run-id|latest>\nagent-harness orchestrate review <run-id|latest> <PASS|BLOCK>\nagent-harness orchestrate deliver <run-id|latest>\nagent-harness orchestrate status [run-id|latest]\nagent-harness orchestrate abort [run-id|latest]\nagent-harness orchestrate example\n\nNormal use is driven by the repository-orchestrator skill. Codex tasks are spawned with\nCodex's native subagent tools. The helper manages the temporary shadow repository, task\nworktrees, deterministic verification, Antigravity execution, integration, and delivery.\nIt never launches a nested codex CLI process and never pushes or merges remotely.`);
+  console.log(`agent-harness orchestrate prepare <plan.json>\nagent-harness orchestrate ready [run-id|latest]\nagent-harness orchestrate task <run-id|latest> <task-id>\nagent-harness orchestrate agy <run-id|latest> <task-id>\nagent-harness orchestrate agy-status <run-id|latest> <task-id>\nagent-harness orchestrate complete <run-id|latest> <task-id>\nagent-harness orchestrate fail <run-id|latest> <task-id> [reason]\nagent-harness orchestrate review-task <run-id|latest>\nagent-harness orchestrate review-agy <run-id|latest>\nagent-harness orchestrate review-agy-status <run-id|latest>\nagent-harness orchestrate review <run-id|latest> <PASS|BLOCK>\nagent-harness orchestrate deliver <run-id|latest>\nagent-harness orchestrate status [run-id|latest]\nagent-harness orchestrate abort [run-id|latest]\nagent-harness orchestrate example\n\nNormal use is driven by the repository-orchestrator skill. Codex tasks are spawned with\nCodex's native subagent tools. Antigravity tasks are submitted to the host-side agy runner\nstarted from the user's normal terminal. The helper manages temporary shadow repositories,\nworktrees, deterministic verification, integration, review state, and delivery. It never\nlaunches a nested codex CLI process and never runs agy directly inside the Codex/Web sandbox.`);
 }
 
 export function examplePlan() {
@@ -138,7 +132,7 @@ export function reviewPrompt(plan, worktree) {
 }
 
 export async function runProcess(command, args, { cwd, input = null, env = {}, logFile, label, displayCommand = null }) {
-  mkdirSync(path.dirname(logFile), { recursive: true });
+  mkdirSync(new URL('.', `file://${logFile}`).pathname, { recursive: true });
   const log = createWriteStream(logFile, { flags: 'a' });
   log.write(`$ ${displayCommand || `${command} ${args.map(shellQuote).join(' ')}`}\n`);
   return await new Promise((resolve) => {
@@ -175,22 +169,5 @@ export async function runProcess(command, args, { cwd, input = null, env = {}, l
       resolve({ code: code ?? 1, signal, stdout, stderr });
     });
     child.stdin.end(input ?? undefined);
-  });
-}
-
-export async function invokeAgy({ cwd, prompt, model, approval, logFile, taskId }) {
-  if (!commandExists('agy')) return { code: 127, error: 'agy command not found', stdout: '', stderr: '' };
-  const runtimeDir = path.join(path.dirname(logFile), 'runtime', sanitize(taskId), 'xdg-runtime');
-  mkdirSync(runtimeDir, { recursive: true, mode: 0o700 });
-  const args = ['--print-timeout', '15m'];
-  if (model) args.push('--model', model);
-  if (approval === 'yolo') args.push('--dangerously-skip-permissions');
-  args.push('--prompt', prompt);
-  return runProcess('agy', args, {
-    cwd,
-    logFile,
-    label: taskId,
-    env: { AGENT_HARNESS_TASK_ID: taskId, XDG_RUNTIME_DIR: runtimeDir },
-    displayCommand: `agy --print-timeout 15m${model ? ` --model ${shellQuote(model)}` : ''}${approval === 'yolo' ? ' --dangerously-skip-permissions' : ''} --prompt '[task packet omitted]'`,
   });
 }
