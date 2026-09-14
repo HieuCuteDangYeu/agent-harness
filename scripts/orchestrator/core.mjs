@@ -50,7 +50,7 @@ export function resolveAgent(requested) {
 }
 
 export function usage() {
-  console.log(`agent-harness orchestrate start <plan.json>\nagent-harness orchestrate status [run-id|latest]\nagent-harness orchestrate logs [run-id|latest] [lines]\nagent-harness orchestrate <plan.json> [options]\nagent-harness orchestrate example\n\nNormal orchestrator use:\n  start                   Snapshot the current worktree into an isolated temporary repo and run detached.\n                          Existing committed, modified, deleted, and untracked non-ignored files become the baseline.\n                          The final verified patch is applied back to the caller worktree without writing caller .git metadata.\n  status                  Read durable run state without waiting on the agent process.\n  logs                    Tail the dispatcher log.\n\nForeground/debug options:\n  --dry-run               Validate and print the graph without running agents.\n  --max-parallel <n>      Override plan.maxParallel (default 2, max 8).\n  --keep-worktrees        Keep temporary worktrees for debugging.\n  --allow-dirty           Foreground only: ignore caller-worktree changes; they are NOT included.\n\nSupported executors are codex and agy (Antigravity). The dispatcher prefers the\nrequested executor and falls back to the other installed executor when necessary.\n\nExecution is local-only. Detached mode avoids caller .git writes, runs agents in isolated\nworktrees, verifies tasks, integrates successful work, performs final review, and applies\nonly the verified result patch back to the caller worktree. It never pushes or merges remotely.`);
+  console.log(`agent-harness orchestrate start <plan.json>\nagent-harness orchestrate status [run-id|latest]\nagent-harness orchestrate logs [run-id|latest] [lines]\nagent-harness orchestrate <plan.json> [options]\nagent-harness orchestrate example\n\nNormal orchestrator use:\n  start                   Snapshot the current worktree into an isolated temporary repo and run detached.\n                          Existing committed, modified, deleted, and untracked non-ignored files become the baseline.\n                          The final verified patch is applied back to the caller worktree without writing caller .git metadata.\n  status                  Read durable run state without waiting on the agent process.\n  logs                    Tail the dispatcher log.\n\nForeground/debug options:\n  --dry-run               Validate and print the graph without running agents.\n  --max-parallel <n>      Override plan.maxParallel (default 2, max 8).\n  --keep-worktrees        Keep temporary worktrees for debugging.\n  --allow-dirty           Foreground only: ignore caller-worktree changes; they are NOT included.\n\nSupported executors are codex and agy (Antigravity). The dispatcher prefers the\nrequested executor and falls back to the other installed executor when necessary.\n\nExecution is local-only. Detached mode avoids caller .git writes, runs agents in isolated\nworktrees, gives executor runtime state a writable temporary home, verifies tasks, integrates\nsuccessful work, performs final review, and applies only the verified result patch back to\nthe caller worktree. It never pushes or merges remotely.`);
 }
 
 export function examplePlan() {
@@ -205,11 +205,26 @@ export async function runProcess(command, args, { cwd, input = null, env = {}, l
   });
 }
 
+function executorRuntime(resultFile, taskId) {
+  const root = path.join(path.dirname(resultFile), 'runtime', sanitize(taskId));
+  const xdgRuntime = path.join(root, 'xdg-runtime');
+  const codexSqlite = path.join(root, 'codex-sqlite');
+  mkdirSync(xdgRuntime, { recursive: true, mode: 0o700 });
+  mkdirSync(codexSqlite, { recursive: true, mode: 0o700 });
+  return { xdgRuntime, codexSqlite };
+}
+
 export async function invokeAgent(agent, { cwd, prompt, model, approval, logFile, resultFile, taskId }) {
   if (!commandExists(agent)) return { code: 127, error: `${agent} command not found`, stdout: '', stderr: '' };
 
+  const runtime = executorRuntime(resultFile, taskId);
+  const commonEnv = {
+    AGENT_HARNESS_TASK_ID: taskId,
+    XDG_RUNTIME_DIR: runtime.xdgRuntime,
+  };
+
   if (agent === 'codex') {
-    const args = ['--ask-for-approval', 'never', 'exec', '--sandbox', 'workspace-write', '-C', cwd, '--output-last-message', resultFile];
+    const args = ['--ask-for-approval', 'never', 'exec', '--ephemeral', '--sandbox', 'workspace-write', '-C', cwd, '--output-last-message', resultFile];
     if (model) args.push('--model', model);
     args.push('-');
     return runProcess('codex', args, {
@@ -217,7 +232,10 @@ export async function invokeAgent(agent, { cwd, prompt, model, approval, logFile
       input: prompt,
       logFile,
       label: taskId,
-      env: { AGENT_HARNESS_TASK_ID: taskId },
+      env: {
+        ...commonEnv,
+        CODEX_SQLITE_HOME: runtime.codexSqlite,
+      },
     });
   }
 
@@ -230,7 +248,7 @@ export async function invokeAgent(agent, { cwd, prompt, model, approval, logFile
       cwd,
       logFile,
       label: taskId,
-      env: { AGENT_HARNESS_TASK_ID: taskId },
+      env: commonEnv,
       displayCommand: `agy --print-timeout 15m${model ? ` --model ${shellQuote(model)}` : ''}${approval === 'yolo' ? ' --dangerously-skip-permissions' : ''} --prompt '[task packet omitted]'`,
     });
     writeFileSync(resultFile, result.stdout || '', 'utf8');

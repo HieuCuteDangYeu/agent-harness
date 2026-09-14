@@ -76,6 +76,8 @@ Do **not** create temporary Codex wrappers, patch harness internals inside the p
 
 Do **not** use native `create agent`, delegation, sub-agent, or ad-hoc agent tools for repository execution. The dispatcher is the only agent-launch path.
 
+Do **not** launch `codex-web-gpt` as an executor or probe/repair the Web bridge as a task fallback. Codex Web GPT is only the parent transport that lets the ChatGPT Web orchestrator access the local Codex tool surface. Repository workers are `codex` and `agy` only.
+
 Do **not** directly edit the same implementation while a dispatcher run is active. If a run is slow, keep polling durable state. If it fails, report the concrete failure or create a new corrective dispatcher plan; never duplicate the active task as a fallback.
 
 A timeout or Web-model disconnect is not permission to reimplement the task. The detached dispatcher continues independently.
@@ -83,6 +85,8 @@ A timeout or Web-model disconnect is not permission to reimplement the task. The
 ## Runtime behavior
 
 Ponytail and agentmemory are host integrations. Do not create setup tasks for them.
+
+The dispatcher gives each executor writable temporary runtime state. Codex keeps the user's normal configuration/authentication while its SQLite state is redirected away from a read-only outer sandbox, and detached Codex executions are ephemeral.
 
 - follow Ponytail minimal-change guidance when available
 - never simplify away auth, validation, transactions, concurrency/idempotency, data integrity, security, error handling, or accessibility

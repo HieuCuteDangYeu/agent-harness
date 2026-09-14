@@ -62,6 +62,7 @@ ORCHESTRATOR_SKILL="$TARGET/.agents/skills/repository-orchestrator/SKILL.md"
 OLD_ORCHESTRATOR_SKILL_BLOBS=(
   "b8c258d37ec997437e161aa9ea148290b5715a10" # v0.6.2
   "bad3fbc6f77b2ef7f1c1448c85b36a7ae13b378e" # v0.6.3
+  "fdd49c1743c6c7866cb43ea9b3f88771f95e30b0" # v0.6.4
 )
 if [[ -f "$ORCHESTRATOR_SKILL" ]]; then
   current_blob="$(git hash-object "$ORCHESTRATOR_SKILL" 2>/dev/null || true)"
