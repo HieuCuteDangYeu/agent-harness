@@ -1,6 +1,5 @@
 import { createHash, randomBytes } from 'node:crypto';
 import { existsSync, mkdirSync, readFileSync, renameSync, statSync, writeFileSync } from 'node:fs';
-import os from 'node:os';
 import path from 'node:path';
 
 function uid() {
@@ -8,7 +7,7 @@ function uid() {
 }
 
 export function agyQueueRoot() {
-  return process.env.AGENT_HARNESS_AGY_QUEUE_DIR || path.join(os.tmpdir(), `agent-harness-agy-${uid()}`);
+  return process.env.AGENT_HARNESS_AGY_QUEUE_DIR || path.join('/tmp', `agent-harness-agy-${uid()}`);
 }
 
 function queuePath(...parts) {
@@ -16,6 +15,7 @@ function queuePath(...parts) {
 }
 
 function ensureQueue() {
+  mkdirSync(agyQueueRoot(), { recursive: true, mode: 0o700 });
   for (const dir of ['pending', 'running', 'results', 'logs']) {
     mkdirSync(queuePath(dir), { recursive: true, mode: 0o700 });
   }
