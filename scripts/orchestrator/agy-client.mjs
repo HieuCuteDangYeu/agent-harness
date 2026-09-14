@@ -1,4 +1,4 @@
-import { randomBytes } from 'node:crypto';
+import { createHash, randomBytes } from 'node:crypto';
 import { existsSync, mkdirSync, readFileSync, renameSync, statSync, writeFileSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -38,7 +38,21 @@ export function agyRunnerStatus({ maxAgeMs = 10000 } = {}) {
   }
 }
 
-export function submitAgyJob({ cwd, prompt, model = null, approval = null, timeout = '15m', taskId = 'agy-task' }) {
+function stableJobId(idempotencyKey) {
+  if (!idempotencyKey) return `${Date.now()}-${randomBytes(4).toString('hex')}`;
+  return `job-${createHash('sha256').update(idempotencyKey).digest('hex').slice(0, 24)}`;
+}
+
+export function getAgyJob(id) {
+  if (!id) throw new Error('agy job id is required');
+  const resultFile = queuePath('results', `${id}.json`);
+  if (existsSync(resultFile)) return { state: 'complete', result: readJson(resultFile), resultFile };
+  if (existsSync(queuePath('running', `${id}.json`))) return { state: 'running' };
+  if (existsSync(queuePath('pending', `${id}.json`))) return { state: 'pending' };
+  return { state: 'missing' };
+}
+
+export function submitAgyJob({ cwd, prompt, model = null, approval = null, timeout = '15m', taskId = 'agy-task', idempotencyKey = null }) {
   const runner = agyRunnerStatus();
   if (!runner.ready) {
     throw new Error(`agy host runner unavailable: ${runner.reason}. Start it from a normal terminal with: agent-harness agy start`);
@@ -48,7 +62,10 @@ export function submitAgyJob({ cwd, prompt, model = null, approval = null, timeo
   if (typeof prompt !== 'string' || !prompt.trim()) throw new Error('agy job prompt is required');
   ensureQueue();
 
-  const id = `${Date.now()}-${randomBytes(4).toString('hex')}`;
+  const id = stableJobId(idempotencyKey);
+  const existing = getAgyJob(id);
+  if (existing.state !== 'missing') return { id, reused: true, state: existing.state };
+
   const job = {
     version: 1,
     id,
@@ -64,14 +81,5 @@ export function submitAgyJob({ cwd, prompt, model = null, approval = null, timeo
   const target = queuePath('pending', `${id}.json`);
   writeFileSync(temp, `${JSON.stringify(job, null, 2)}\n`, { encoding: 'utf8', mode: 0o600 });
   renameSync(temp, target);
-  return { id, job };
-}
-
-export function getAgyJob(id) {
-  if (!id) throw new Error('agy job id is required');
-  const resultFile = queuePath('results', `${id}.json`);
-  if (existsSync(resultFile)) return { state: 'complete', result: readJson(resultFile), resultFile };
-  if (existsSync(queuePath('running', `${id}.json`))) return { state: 'running' };
-  if (existsSync(queuePath('pending', `${id}.json`))) return { state: 'pending' };
-  return { state: 'missing' };
+  return { id, reused: false, state: 'pending' };
 }
