@@ -38,7 +38,7 @@ Default roles:
 - **Codex (`codex`)** — primary implementation, backend logic, difficult debugging
 - **Antigravity (`agy`)** — independent parallel work, focused tests, UI-oriented work, independent review
 
-Use `codex` or `agy` directly in the dispatcher plan. If one executor is unavailable, the dispatcher may fall back to the other. Do not invent a Gemini role or require Gemini CLI.
+Use only `codex` or `agy` in the dispatcher plan. If one executor is unavailable, the dispatcher may fall back to the other.
 
 Each task should contain only the goal, relevant paths/contracts, dependencies, acceptance criteria, constraints/non-goals, and deterministic verification commands.
 
