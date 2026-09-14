@@ -8,23 +8,15 @@ Do this once for each project.
 cd ~/Projects/my-project
 ```
 
-A clean Git working tree is recommended.
-
 ## 2. Run the setup script
 
 ```bash
 bash <(curl -fsSL https://raw.githubusercontent.com/HieuCuteDangYeu/agent-harness/main/bootstrap.sh)
 ```
 
-For the full setup, answer `Y` to:
+For the full setup, answer `Y` to Ponytail, Codex Web GPT, and agentmemory.
 
-```text
-Ponytail
-Codex Web GPT
-agentmemory
-```
-
-The script installs or updates the harness, prepares the repo files, configures supported agent integrations, and starts local memory.
+Antigravity (`agy`) is optional. Codex is the primary coding host and repository orchestration uses its built-in subagents when they are available.
 
 ## 3. Finish Codex hooks
 
@@ -34,9 +26,7 @@ Run:
 codex
 ```
 
-If Codex shows hooks that need review, open `/hooks`, inspect Ponytail and agentmemory hooks, trust only the hooks you accept, then restart Codex or start a new thread.
-
-You only repeat this after a hook/plugin update that asks for review.
+If Codex asks you to review hooks, open `/hooks`, inspect Ponytail and agentmemory hooks, trust only the hooks you accept, then start a new thread.
 
 ## 4. Finish ChatGPT Web setup
 
@@ -55,7 +45,7 @@ In the launcher:
 5. finish the connector setup shown by the launcher
 6. restart Codex
 
-Keep Codex Web GPT open while using a Web model.
+Keep Codex Web GPT open while using a Web model. It is only the parent bridge; repository workers are Codex native subagents and optional `agy` tasks.
 
 ## 5. Verify
 
@@ -66,7 +56,7 @@ agent-harness memory status
 agent-harness chatgpt-web status
 ```
 
-Memory should use a global data directory, not the project. On Linux the default is:
+Memory data stays outside the project. On Linux the default is:
 
 ```text
 ~/.local/share/agentmemory
@@ -74,14 +64,12 @@ Memory should use a global data directory, not the project. On Linux the default
 
 ## Optional: create repository skills
 
-For an existing codebase, you can ask Codex:
+For an existing codebase:
 
 ```text
 Use repo-skill-bootstrap to inspect this repository.
 Propose only high-value repository-specific skills.
 Do not create them until I approve the inventory.
 ```
-
-For a new empty repo, wait until real architecture and conventions exist.
 
 After setup, continue with [How to use](usage.md).
