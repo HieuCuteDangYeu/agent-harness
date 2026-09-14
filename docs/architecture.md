@@ -1,23 +1,21 @@
 # Architecture
 
-`agent-harness` separates planning from execution.
+`agent-harness` separates orchestration, execution, and verification.
 
 ```text
 You
  ↓
-ChatGPT Web orchestrator
+ChatGPT Web / Codex orchestrator
  ↓
 repository-orchestrator skill
  ↓
 internal task graph
  ↓
-detached dispatcher
- ↓
-shadow repo from current worktree
- ├─ Codex workers
+shadow repository + isolated worktrees
+ ├─ Codex native subagents
  └─ Antigravity (`agy`) workers
  ↓
-deterministic verification
+deterministic verification + integration
  ↓
 skill-maintenance
  ↓
@@ -28,47 +26,58 @@ verified patch applied to caller worktree
 
 ## Orchestrator
 
-`AGENTS.md` is the routing layer. When orchestration is requested, it activates `.agents/skills/repository-orchestrator/SKILL.md`.
+`AGENTS.md` routes explicit orchestration requests to `.agents/skills/repository-orchestrator/SKILL.md`.
 
-The skill reads the request, repository, relevant skills, and selective memory, then creates the smallest useful task graph. It never uses native sub-agent delegation for repository execution.
+The parent orchestrator inspects the task, code, tests, relevant skills, and selective memory, then builds the smallest useful dependency graph.
 
-## Dispatcher
+Codex tasks use Codex's built-in subagent tools. The harness does not launch nested `codex exec` processes.
 
-Detached execution snapshots the caller's current committed, modified, deleted, and untracked non-ignored files into a temporary Git repository. All branches, commits, worktrees, and run metadata are created there, so normal orchestration does not need to write the caller repository's `.git` directory.
+## Harness helper
 
-The dispatcher:
+`agent-harness orchestrate` is a deterministic Git/worktree helper, not another agent runtime.
 
-- validates the graph before execution
-- preserves an existing dirty caller worktree as the baseline
-- creates isolated task worktrees in the shadow repository
-- schedules dependencies and safe parallel work
-- uses Codex and Antigravity (`agy`) directly, with fallback to the other installed executor when needed
-- gives workers writable temporary runtime directories
-- redirects Codex SQLite state with `CODEX_SQLITE_HOME` while preserving the user's normal Codex config/auth
-- runs Codex workers ephemerally so orchestration does not depend on writable conversation state
-- runs verification outside agent self-reports
-- integrates successful commits
-- runs skill maintenance after implementation
-- blocks failed dependents and merge conflicts
-- runs final review
-- applies only the verified result delta back to the caller worktree
-- stores status, logs, patch, executor runtime state, and shadow repository under the system temporary directory by default
+It:
 
-It never pushes or merges remotely by itself.
+- snapshots the caller's committed, modified, deleted, and untracked non-ignored files into a temporary shadow repository
+- creates one isolated worktree per task
+- prints the exact task packet for native Codex subagents
+- launches `agy` only for Antigravity-assigned tasks
+- runs declared verification commands itself
+- commits and integrates successful task worktrees
+- blocks dependents after failures or merge conflicts
+- creates a disposable final-review worktree
+- applies only the verified delta back to the caller worktree
+- never pushes or merges remotely
+
+The caller repository's `.git` directory is not used for orchestration branches or run state.
+
+## Codex native subagents
+
+Native Codex subagents are the Codex execution primitive. They inherit the parent host/session instead of starting another Codex CLI runtime.
+
+Each subagent receives an absolute temporary worktree path and must work only there. The parent uses native wait/message/close tools to manage its lifecycle, while the harness helper verifies and integrates the result afterward.
+
+This avoids nested Codex runtime state, SQLite, AppImage, and sandbox compatibility workarounds.
+
+## Antigravity
+
+Antigravity remains an external executor through `agy`. It is useful for independent UI-oriented work, focused tests, or secondary implementation/review.
+
+If `agy` is not installed, the orchestrator simply avoids assigning Antigravity tasks.
 
 ## Runtime integrations
 
-**Ponytail** provides minimal-change/YAGNI guidance through coding hosts.
+**Ponytail** provides minimal-change/YAGNI guidance through the coding hosts.
 
 **agentmemory** provides selective shared local history. Current code and task requirements always override memory.
 
-**Codex Web GPT** lets a ChatGPT Web model use the local Codex tool surface. It is the parent orchestration bridge only, not a worker executor. Keep its launcher open while using Web models.
+**Codex Web GPT** is only the parent bridge that lets a ChatGPT Web model use the local Codex tool surface. It is never a repository worker.
 
 ## Repository skills
 
 `.agents/skills/` stores task workflows and durable project-specific knowledge.
 
-`repository-orchestrator` is the harness execution workflow. `skill-maintenance` keeps repository-specific skills aligned only when stable architecture, security, persistence, messaging, operational, or domain rules change.
+`repository-orchestrator` defines the execution protocol. `skill-maintenance` keeps repository-specific skills aligned only when stable architecture, security, persistence, messaging, operational, or domain rules change.
 
 ## Authority
 
@@ -83,10 +92,8 @@ explicit task requirements
 ## Safety
 
 - never store secrets in memory or task packets
-- executors must not recursively create more agents
-- the orchestrator must not duplicate an active dispatcher task
-- Codex Web GPT is never launched as a repository worker
-- verified patches are checked before they are applied back to the caller worktree
-- simplicity must not remove auth, validation, transactions, idempotency, concurrency, data integrity, security, or accessibility controls
-- skill maintenance changes only repository skill knowledge
+- task subagents must not recursively delegate
+- never run the same implementation task in two places at once
+- verification is executed by the harness helper, not trusted from agent self-reports
 - remote push/merge stays under user control
+- simplicity must not remove auth, validation, transactions, idempotency, concurrency, data integrity, security, or accessibility controls
