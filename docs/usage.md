@@ -15,7 +15,7 @@ Ponytail and agentmemory load through the configured coding host. You do not run
 
 ## Normal workflow
 
-For substantial work, just describe the task:
+Just describe the task:
 
 ```text
 Improve the reel recommendation system using the repository orchestrator.
@@ -27,44 +27,35 @@ The orchestrator handles the rest:
 ```text
 your request
    ↓
-inspect repo + AGENTS.md + relevant skills
-   ↓
-recall memory only when useful
+inspect repo + relevant skills/memory
    ↓
 create task graph internally
    ↓
-run Codex / Gemini in isolated worktrees
+start detached dispatcher
    ↓
-run deterministic verification
+Codex / Gemini worktrees
    ↓
-run skill-maintenance
+verification
+   ↓
+skill-maintenance
    ↓
 final review
    ↓
 local integration branch
 ```
 
-You do not create the task graph or plan JSON yourself.
+You do not create plan JSON, worktrees, or agents yourself.
 
-### Skill maintenance
-
-After substantial implementation, the orchestrator checks the integrated change with `skill-maintenance`.
-
-- `NO_SKILL_CHANGE` → no skill files are changed.
-- `UPDATE_SKILL` / `CREATE_SKILL` / `REMOVE_SKILL` → apply only the required `.agents/skills/` change.
-
-This keeps repository-specific knowledge aligned with the code before final review. One-off implementation details should not become skills.
+The dispatcher runs detached so ChatGPT/Codex command wait limits do not interrupt it. The orchestrator checks durable run state instead of starting duplicate fallback work.
 
 ## Plan only
-
-If you want to review the approach first:
 
 ```text
 Plan this task using the repository orchestrator.
 Do not execute it yet.
 ```
 
-Then continue with:
+Then:
 
 ```text
 Approved. Execute the plan.
@@ -80,51 +71,34 @@ Read AGENTS.md and relevant repository skills first.
 Run targeted verification and review the diff.
 ```
 
-Use multi-agent orchestration only when splitting the work is useful.
+## Skill maintenance
 
-## What the dispatcher does
+After substantial implementation, `skill-maintenance` checks whether durable repository knowledge changed.
 
-It automatically:
+`NO_SKILL_CHANGE` is the normal no-op. Otherwise it updates only the required `.agents/skills/` files.
 
-- validates the generated task graph
-- creates isolated Git worktrees
-- runs independent Codex/Gemini tasks in parallel when safe
-- waits for dependencies
-- runs declared verification commands itself
-- integrates successful changes into `agent/orchestrate-*`
-- runs the skill-maintenance task after implementation
-- blocks dependent work after failures or conflicts
-- runs a final reviewer
-- stores logs under `.git/agent-harness/`
+## Inspect or debug orchestration
 
-It does not push or merge remote branches.
-
-## Inspect the result
-
-The harness prints the integration branch. Common checks:
+Normally ChatGPT handles these commands internally:
 
 ```bash
-git branch --list 'agent/orchestrate/*'
-git diff <base>...agent/orchestrate/<run-branch>
-git log --oneline <base>..agent/orchestrate/<run-branch>
+agent-harness orchestrate status latest
+agent-harness orchestrate logs latest
 ```
 
-Only push after you review the result.
+The integration branch is `agent/orchestrate-*`. The dispatcher never pushes or merges remotely.
 
 ## Troubleshooting
 
 ```bash
 agent-harness doctor .
 agent-harness memory status
-agent-harness memory logs
 agent-harness chatgpt-web status
+agent-harness orchestrate status latest
 ```
 
-If needed:
+For advanced dispatcher usage:
 
 ```bash
-agent-harness memory restart
-agent-harness chatgpt-web open
+agent-harness orchestrate --help
 ```
-
-For dispatcher debugging, run `agent-harness orchestrate --help`.
