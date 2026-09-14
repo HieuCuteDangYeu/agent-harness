@@ -19,9 +19,11 @@ When the user explicitly asks to use the repository orchestrator, orchestration,
 1. Use the `repository-orchestrator` skill before implementation or delegation.
 2. Follow that skill as the execution protocol for the task.
 3. Use Codex native subagents for Codex worker tasks when the host exposes them.
-4. Use `agent-harness orchestrate ...` only for shadow-repo/worktree state, Antigravity execution, deterministic verification, integration, review state, and delivery.
-5. Never launch a nested `codex exec` worker or use `codex-web-gpt` as a worker.
-6. Do not directly implement the same task while an assigned worker is active.
+4. Use Antigravity only for tasks explicitly assigned to `agy`, and route those tasks through the harness host-side `agy` runner.
+5. Use `agent-harness orchestrate ...` for shadow-repo/worktree state, Antigravity handoff, deterministic verification, integration, review state, and delivery.
+6. Never launch a nested `codex exec` worker, run `agy` directly from the Codex/Web sandbox, or use `codex-web-gpt` as a worker.
+7. Never silently fall back between Codex and `agy` when one executor fails or stalls.
+8. Do not directly implement the same task while an assigned worker is active.
 
 If the `repository-orchestrator` skill or required executor capability is unavailable, report the problem instead of silently inventing another orchestration path.
 
@@ -41,7 +43,7 @@ Before implementation:
 
 Memory is advisory. Current code, tests, issue/PR requirements, and version-controlled project instructions are authoritative.
 
-Do not implement solely from an issue description or remembered summary when the repository can answer the question.
+Do not implement solely from the issue description or a remembered summary when the repository can answer the question.
 
 ## Capability selection
 
