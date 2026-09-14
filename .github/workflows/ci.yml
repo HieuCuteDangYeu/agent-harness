@@ -26,7 +26,10 @@ jobs:
           bash -n scripts/setup/chatgpt-web-control.sh
           bash -n scripts/setup/install-agentmemory.sh
           bash -n scripts/setup/agentmemory-service.sh
+          bash -n scripts/setup/agy-runner-service.sh
           node --check scripts/orchestrate.mjs
+          node --check scripts/agy-runner.mjs
+          node --check scripts/orchestrator/agy-client.mjs
           node --check scripts/orchestrator/core.mjs
           node --check scripts/orchestrator/session.mjs
 
