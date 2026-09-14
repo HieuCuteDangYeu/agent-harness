@@ -8,10 +8,20 @@ import { agyQueueRoot } from './orchestrator/agy-client.mjs';
 const queueRoot = agyQueueRoot();
 const dirs = Object.fromEntries(['pending', 'running', 'results', 'logs'].map((name) => [name, path.join(queueRoot, name)]));
 let stopping = false;
+let activeChild = null;
 
 function ensureDirs() {
   mkdirSync(queueRoot, { recursive: true, mode: 0o700 });
   for (const dir of Object.values(dirs)) mkdirSync(dir, { recursive: true, mode: 0o700 });
+}
+
+function recoverInterruptedJobs() {
+  for (const name of readdirSync(dirs.running).filter((entry) => entry.endsWith('.json'))) {
+    const resultFile = path.join(dirs.results, name);
+    const runningFile = path.join(dirs.running, name);
+    if (existsSync(resultFile)) rmSync(runningFile, { force: true });
+    else renameSync(runningFile, path.join(dirs.pending, name));
+  }
 }
 
 function writeHeartbeat() {
@@ -59,10 +69,16 @@ async function runJob(jobFile) {
       env: { ...process.env, AGENT_HARNESS_TASK_ID: job.taskId || 'agy-task' },
       stdio: ['ignore', 'pipe', 'pipe'],
     });
+    activeChild = child;
 
     const appendLog = (text) => {
       writeFileSync(logFile, text, { encoding: 'utf8', flag: 'a', mode: 0o600 });
     };
+    const parseLine = (line) => {
+      const parsed = safeJson(line);
+      if (parsed?.event === 'result' && parsed.result) finalEvent = parsed.result;
+    };
+
     appendLog(`$ agy --print '[task packet omitted]' --print-timeout ${job.timeout || '15m'} --output-format stream-json${job.model ? ` --model ${job.model}` : ''}${job.approval === 'yolo' ? ' --dangerously-skip-permissions' : ''}\n`);
 
     child.stdout.on('data', (chunk) => {
@@ -72,10 +88,7 @@ async function runJob(jobFile) {
       streamBuffer += text;
       const lines = streamBuffer.split(/\r?\n/);
       streamBuffer = lines.pop() || '';
-      for (const line of lines) {
-        const parsed = safeJson(line);
-        if (parsed?.event === 'result' && parsed.result) finalEvent = parsed.result;
-      }
+      for (const line of lines) parseLine(line);
     });
     child.stderr.on('data', (chunk) => {
       const text = chunk.toString();
@@ -85,16 +98,20 @@ async function runJob(jobFile) {
     child.on('error', (error) => {
       if (settled) return;
       settled = true;
+      activeChild = null;
       resolve({ code: 127, error: error.message });
     });
     child.on('close', (code, signal) => {
       if (settled) return;
       settled = true;
+      if (streamBuffer.trim()) parseLine(streamBuffer.trim());
+      activeChild = null;
       resolve({ code: code ?? 1, signal });
     });
   });
 
-  const ok = result.code === 0 && finalEvent?.status === 'SUCCESS';
+  const permissionDenied = /permission|auto-denied|cannot prompt/i.test(stderrTail) && !String(finalEvent?.response || '').trim();
+  const ok = result.code === 0 && finalEvent?.status === 'SUCCESS' && !permissionDenied;
   writeFileSync(resultFile, `${JSON.stringify({
     version: 1,
     id: job.id,
@@ -102,7 +119,7 @@ async function runJob(jobFile) {
     status: ok ? 'success' : 'failed',
     code: result.code,
     signal: result.signal || null,
-    error: result.error || null,
+    error: result.error || (permissionDenied ? 'agy headless permission was denied' : null),
     agyStatus: finalEvent?.status || null,
     response: finalEvent?.response || null,
     stderrTail,
@@ -114,14 +131,20 @@ async function runJob(jobFile) {
   rmSync(runningFile, { force: true });
 }
 
+function requestStop() {
+  stopping = true;
+  if (activeChild && !activeChild.killed) activeChild.kill('SIGTERM');
+}
+
 async function loop() {
   ensureDirs();
+  recoverInterruptedJobs();
   writeHeartbeat();
   const heartbeat = setInterval(writeHeartbeat, 2000);
   heartbeat.unref();
 
-  process.on('SIGTERM', () => { stopping = true; });
-  process.on('SIGINT', () => { stopping = true; });
+  process.on('SIGTERM', requestStop);
+  process.on('SIGINT', requestStop);
 
   while (!stopping) {
     const jobs = readdirSync(dirs.pending)
@@ -138,7 +161,6 @@ if (process.argv[2] !== 'serve') {
   process.exit(2);
 }
 
-if (!existsSync(process.cwd())) process.exit(1);
 loop().catch((error) => {
   console.error(error.stack || error.message);
   process.exit(1);
