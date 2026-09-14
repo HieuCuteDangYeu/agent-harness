@@ -11,29 +11,29 @@ agent-harness chatgpt-web open   # only for ChatGPT Web models
 codex
 ```
 
-Ponytail and agentmemory load through the configured coding host. You do not run them manually for each task.
+Ponytail and agentmemory load through the configured host. You do not run them manually for each task.
 
 ## Normal workflow
 
-Just describe the task:
+Just describe the work:
 
 ```text
-Improve the reel recommendation system using the repository orchestrator.
-Implement it, verify it, and do not push or merge remotely.
+Implement this using the repository orchestrator.
+Verify it and do not push or merge remotely.
 ```
 
-`AGENTS.md` routes this to `.agents/skills/repository-orchestrator/SKILL.md`.
+`AGENTS.md` routes the request to `.agents/skills/repository-orchestrator/SKILL.md`.
 
-The harness handles the rest:
+The harness handles:
 
 ```text
 your current worktree
    ↓
-isolated temporary baseline
+temporary shadow repository
    ↓
-Codex / Antigravity (agy) workers
+Codex native subagents + optional Antigravity (`agy`)
    ↓
-verification
+deterministic verification
    ↓
 skill-maintenance
    ↓
@@ -42,11 +42,9 @@ final review
 verified patch applied back to your worktree
 ```
 
-You do not create plan JSON, worktrees, or agents yourself. Existing local changes are preserved automatically; a clean working tree is not required for normal detached orchestration.
+You do not create plan JSON, worktrees, branches, or agents yourself. Existing local changes are included in the temporary baseline automatically.
 
-The dispatcher uses `codex` and `agy` as first-class executors. If one is unavailable, it can fall back to the other.
-
-The dispatcher runs detached, so a ChatGPT Web disconnect or command wait limit does not cancel the run.
+Codex work uses the host's built-in subagent tools. The harness never launches nested `codex exec` workers. `agy` is used only when the plan assigns Antigravity work.
 
 ## Plan only
 
@@ -75,29 +73,22 @@ Run targeted verification and review the diff.
 
 After substantial implementation, `skill-maintenance` checks whether durable repository knowledge changed.
 
-`NO_SKILL_CHANGE` is the normal no-op. Otherwise it updates only the required `.agents/skills/` files.
+`NO_SKILL_CHANGE` is the normal result. Otherwise only the necessary `.agents/skills/` files are updated.
 
-## Inspect or debug orchestration
+## Inspect orchestration
 
-Normally ChatGPT handles these commands internally:
+Normally the orchestrator handles the helper commands. For troubleshooting:
 
 ```bash
 agent-harness orchestrate status latest
-agent-harness orchestrate logs latest
-```
-
-Detached runtime state and the shadow Git repository live under the system temporary directory by default, not under your project's `.git` directory. The harness never pushes or merges remotely.
-
-## Troubleshooting
-
-```bash
 agent-harness doctor .
 agent-harness memory status
 agent-harness chatgpt-web status
-agent-harness orchestrate status latest
 ```
 
-For advanced dispatcher usage:
+Run state and shadow repositories live under the system temporary directory by default, not inside your project's `.git` directory.
+
+For helper details:
 
 ```bash
 agent-harness orchestrate --help
