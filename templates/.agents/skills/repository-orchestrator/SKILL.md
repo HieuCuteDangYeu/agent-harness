@@ -36,7 +36,13 @@ Use the executor selected during planning. Do not silently substitute one execut
 
 Before assigning any `agy` task, require `agent-harness agy status` to report the host runner as running. If it is unavailable, do not start or repair it from inside the orchestrator. Report that the user should run `agent-harness agy start` from a normal terminal, or build the plan without `agy` when that does not reduce correctness.
 
-For write-capable `agy` tasks, set `approval: "yolo"` only because the runner executes inside a disposable isolated task worktree. Never use this mode against the caller checkout.
+Do not request `approval: "yolo"` by default. Host-side yolo mode is an explicit user opt-in because it grants Antigravity unrestricted host command access. If an `agy` task genuinely needs capabilities such as ADB or other commands that headless request-review mode cannot approve, tell the user to opt in from a normal terminal with:
+
+```bash
+AGENT_HARNESS_AGY_ALLOW_YOLO=1 agent-harness agy restart
+```
+
+Then use `approval: "yolo"` only for the isolated harness task/review worktree that needs it. Never use yolo mode against the caller checkout.
 
 A failed or slow Codex task stays a Codex task. A failed or slow `agy` task stays an `agy` task. Do not cross-fallback between executors.
 
@@ -102,6 +108,8 @@ After reconnecting to a Codex/Web session, inspect existing live agents and `age
 ## Antigravity task rules
 
 `agy` is not launched directly by the Web/Codex sandbox. `agent-harness orchestrate agy ...` submits the task packet and isolated worktree path to the host-side runner through a private per-user queue under the system temporary directory. The runner was started from the normal terminal and therefore keeps the user's ordinary Antigravity authentication, filesystem environment, language-server runtime, localhost sockets, and device access.
+
+The host runner accepts only orchestrator-owned task/review worktrees under the harness state directory. It rejects arbitrary caller or home-directory paths before launching Antigravity.
 
 The host runner invokes `agy --print ... --output-format stream-json` and returns only durable job status/output to the orchestrator. Do not run `agy` directly as a fallback from the parent session.
 
