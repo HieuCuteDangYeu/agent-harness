@@ -121,6 +121,33 @@ remove_if_unchanged_hash() {
   fi
 }
 
+remove_generated_orchestrator_doc() {
+  local dst="$TARGET/docs/agent-orchestrator.md"
+  local hash
+  for hash in \
+    "25d3eac348f367c261a74cb381a276afe9066694" \
+    "5c5a38f6a330c1ac22055ab2c5bc37a92450e2b1" \
+    "3727166cebee784d9b50ce679ee9a7fc0f059a7a" \
+    "bd883e3adfb2b0173c482ddf3e5b69a97718d74b" \
+    "b76b8c4dcb6f05ea5f09a3c59805f14d9502f885" \
+    "2109e8a976d18cf10343e77cb708c63ec1e0f944" \
+    "9eecbcd78dae935f99627026c9a36698455402a1" \
+    "7536e45d9a3a2759b3235dc51ba0f490e3f4c128"; do
+    if [[ -f "$dst" ]] && [[ "$(git hash-object "$dst" 2>/dev/null || true)" == "$hash" ]]; then
+      rm -f "$dst"
+      echo "REMOVE  $dst (moved to repository-orchestrator skill)"
+      rmdir "$(dirname "$dst")" 2>/dev/null || true
+      return
+    fi
+  done
+
+  if [[ -f "$dst" ]] && grep -qF "TencentDB Agent Memory" "$dst"; then
+    rm -f "$dst"
+    echo "REMOVE  $dst (legacy generated orchestrator)"
+    rmdir "$(dirname "$dst")" 2>/dev/null || true
+  fi
+}
+
 install_skill() {
   local skill="$1"
   copy_if_missing "$TEMPLATES/.agents/skills/$skill" "$TARGET/.agents/skills/$skill"
@@ -147,6 +174,7 @@ init_harness() {
     "$TARGET/AGENTS.md" \
     'check shared memory when `agent-memory` is available'
 
+  install_skill "repository-orchestrator"
   install_skill "repo-skill-bootstrap"
   install_skill "skill-discovery"
   install_skill "skill-maintenance"
@@ -163,11 +191,7 @@ init_harness() {
   remove_if_unchanged_hash "$TARGET/.github/pull_request_template.md" "180a428ed4da1e5fc621e8d86ddd6270f50e62e3"
 
   copy_if_missing "$TEMPLATES/scripts/agents/create-worktree.sh" "$TARGET/scripts/agents/create-worktree.sh"
-  copy_if_missing "$TEMPLATES/docs/chatgpt-orchestrator.md" "$TARGET/docs/agent-orchestrator.md"
-  replace_legacy_if_present \
-    "$TEMPLATES/docs/chatgpt-orchestrator.md" \
-    "$TARGET/docs/agent-orchestrator.md" \
-    "TencentDB Agent Memory"
+  remove_generated_orchestrator_doc
 
   if [[ -f "$TARGET/scripts/agents/agent-memory" ]] && \
      grep -qF "TencentDB Agent Memory" "$TARGET/scripts/agents/agent-memory"; then
@@ -311,10 +335,11 @@ Memory lifecycle:
 
 Coding flow:
   1. ChatGPT Web orchestrates through the Codex Full Harness when enabled.
-  2. Agents use agentmemory MCP recall only when historical context materially helps.
-  3. Use `skill-discovery` for maintained external expertise.
-  4. Use `repo-skill-bootstrap` for repository-specific invariants.
-  5. Execute via Codex/Antigravity, verify with CI, and save only durable memory.
+  2. Explicit orchestration requests use the `repository-orchestrator` skill and detached dispatcher.
+  3. Agents use agentmemory MCP recall only when historical context materially helps.
+  4. Use `skill-discovery` for maintained external expertise.
+  5. Use `repo-skill-bootstrap` for repository-specific invariants.
+  6. Execute via Codex/Antigravity, verify with CI, and save only durable memory.
 NEXT
 }
 
@@ -334,12 +359,12 @@ doctor_harness() {
   }
 
   check "AGENTS.md"
+  check ".agents/skills/repository-orchestrator/SKILL.md"
   check ".agents/skills/repo-skill-bootstrap/SKILL.md"
   check ".agents/skills/skill-discovery/SKILL.md"
   check ".agents/skills/skill-maintenance/SKILL.md"
   check ".agents/skills/shared-memory/SKILL.md"
   check "scripts/agents/create-worktree.sh"
-  check "docs/agent-orchestrator.md"
 
   if [[ -x "$TARGET/scripts/agents/create-worktree.sh" ]]; then
     echo "OK      scripts/agents/create-worktree.sh executable"

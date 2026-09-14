@@ -50,6 +50,7 @@ fi
 AGENTS_FILE="$TARGET/AGENTS.md"
 OLD_AGENTS_BLOBS=(
   "41adcfaf38b6ca2b8b9c2ec6005f4f75fb16832e" # v0.4.x-v0.6.0
+  "bc52e816056d09a119d7680039055a3b1f59e0a0" # v0.6.1
 )
 if [[ -f "$AGENTS_FILE" ]]; then
   current_blob="$(git hash-object "$AGENTS_FILE" 2>/dev/null || true)"
@@ -62,25 +63,6 @@ if [[ -f "$AGENTS_FILE" ]]; then
   done
 fi
 
-# Migrate only exact generated orchestrator documents from older harness
-# versions. Never overwrite a user-edited copy.
-ORCHESTRATOR_FILE="$TARGET/docs/agent-orchestrator.md"
-OLD_ORCHESTRATOR_BLOBS=(
-  "25d3eac348f367c261a74cb381a276afe9066694" # v0.4.x
-  "5c5a38f6a330c1ac22055ab2c5bc37a92450e2b1" # v0.5.0
-  "3727166cebee784d9b50ce679ee9a7fc0f059a7a" # v0.5.1
-  "bd883e3adfb2b0173c482ddf3e5b69a97718d74b" # v0.5.2-v0.5.3
-  "b76b8c4dcb6f05ea5f09a3c59805f14d9502f885" # v0.5.4
-  "2109e8a976d18cf10343e77cb708c63ec1e0f944" # v0.5.5
-  "9eecbcd78dae935f99627026c9a36698455402a1" # v0.5.6-v0.5.7
-)
-if [[ -f "$ORCHESTRATOR_FILE" ]]; then
-  current_blob="$(git hash-object "$ORCHESTRATOR_FILE" 2>/dev/null || true)"
-  for old_blob in "${OLD_ORCHESTRATOR_BLOBS[@]}"; do
-    if [[ "$current_blob" == "$old_blob" ]]; then
-      cp "$INSTALL_DIR/templates/docs/chatgpt-orchestrator.md" "$ORCHESTRATOR_FILE"
-      echo "MIGRATE $ORCHESTRATOR_FILE (current orchestrator protocol)"
-      break
-    fi
-  done
-fi
+# The ready/init step installs `.agents/skills/repository-orchestrator/` and
+# removes only known generated `docs/agent-orchestrator.md` copies. User-edited
+# project documentation is intentionally preserved.

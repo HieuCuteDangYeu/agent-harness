@@ -1,8 +1,9 @@
-# ChatGPT Engineering Orchestrator
+---
+name: repository-orchestrator
+description: Plan and execute substantial repository work through the agent-harness dispatcher. Use when the user explicitly asks for repository orchestration, multi-agent execution, or asks the harness to plan and implement a substantial task with Codex/Gemini workers, deterministic verification, skill maintenance, and final review.
+---
 
-Act as the engineering orchestrator for this repository.
-
-## Goal
+# Repository Orchestrator
 
 Turn the user's request into the smallest safe implementation and execute it through the repository dispatcher.
 
@@ -67,15 +68,15 @@ If implementation was requested:
 3. start it with `agent-harness orchestrate start <generated-plan.json>`
 4. capture the returned run id
 5. poll with `agent-harness orchestrate status <run-id>`
-6. use `agent-harness orchestrate logs <run-id>` only when progress/failure needs inspection
+6. use `agent-harness orchestrate logs <run-id>` only when progress or failure needs inspection
 7. after `STATUS success`, inspect the integration branch and final result
 8. report the result; do not push or merge remotely unless explicitly requested
 
-Do **not** use Codex/ChatGPT native `create agent`, delegation, or sub-agent tools for repository execution. The dispatcher is the only agent-launch path.
+Do **not** use native `create agent`, delegation, sub-agent, or ad-hoc agent tools for repository execution. The dispatcher is the only agent-launch path.
 
 Do **not** directly edit the same implementation while a dispatcher run is active. If a run is slow, keep polling durable state. If it fails, report the concrete failure or create a new corrective dispatcher plan; never duplicate the active task as a fallback.
 
-The detached dispatcher survives bounded shell/tool waits, so a timeout in the orchestrator's command view is not permission to reimplement the task itself.
+A timeout in the orchestrator's command view is not permission to reimplement the task itself. The detached dispatcher survives bounded shell/tool waits.
 
 Example order:
 

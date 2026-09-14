@@ -20,11 +20,15 @@ if grep -q '^CREATE' "$SECOND_LOG"; then
 fi
 
 test -x "$TMP/scripts/agents/create-worktree.sh"
+test -f "$TMP/.agents/skills/repository-orchestrator/SKILL.md"
+grep -q 'agent-harness orchestrate start' "$TMP/.agents/skills/repository-orchestrator/SKILL.md"
 test -f "$TMP/.agents/skills/shared-memory/SKILL.md"
 grep -q 'agentmemory' "$TMP/.agents/skills/shared-memory/SKILL.md"
 grep -q '^## Repository orchestration' "$TMP/AGENTS.md"
-grep -q 'docs/agent-orchestrator.md' "$TMP/AGENTS.md"
+grep -q 'repository-orchestrator' "$TMP/AGENTS.md"
 grep -q 'Do not use native `create agent`' "$TMP/AGENTS.md"
+test ! -e "$TMP/docs/agent-orchestrator.md"
+test ! -e "$ROOT/templates/docs/chatgpt-orchestrator.md"
 test ! -e "$TMP/scripts/agents/agent-memory"
 test ! -e "$TMP/.agent-harness-version"
 test ! -e "$TMP/.github/ISSUE_TEMPLATE/agent-task.md"
@@ -33,8 +37,17 @@ test ! -e "$ROOT/templates/.github/ISSUE_TEMPLATE/agent-task.md"
 test ! -e "$ROOT/templates/.github/pull_request_template.md"
 ! grep -q 'copy_if_missing .*\.github' "$ROOT/bin/agent-harness"
 ! grep -q 'check "\.github/' "$ROOT/bin/agent-harness"
+! grep -q 'templates/docs/chatgpt-orchestrator' "$ROOT/bin/agent-harness"
 grep -q 'obsolete generated template' "$ROOT/bin/agent-harness"
 test "$("$ROOT/bin/agent-harness" version)" = "$(cat "$ROOT/VERSION")"
+
+# A project-owned human doc at the old path is not deleted unless it matches a
+# known generated copy.
+mkdir -p "$TMP/docs"
+printf '%s\n' 'project-owned orchestration notes' > "$TMP/docs/agent-orchestrator.md"
+"$ROOT/bin/agent-harness" init "$TMP" >/dev/null
+grep -q 'project-owned orchestration notes' "$TMP/docs/agent-orchestrator.md"
+rm -f "$TMP/docs/agent-orchestrator.md"
 
 # v0.3.x migration: known Tencent/generated memory references are replaced/removed.
 printf '%s\n' 'check shared memory when `agent-memory` is available' > "$TMP/AGENTS.md"
@@ -46,8 +59,9 @@ grep -q '^MIGRATE ' "$MIGRATION_LOG"
 grep -q '^REMOVE  ' "$MIGRATION_LOG"
 grep -q 'agentmemory' "$TMP/AGENTS.md"
 grep -q '^## Repository orchestration' "$TMP/AGENTS.md"
+grep -q 'repository-orchestrator' "$TMP/AGENTS.md"
 ! grep -q 'TencentDB Agent Memory' "$TMP/.agents/skills/shared-memory/SKILL.md"
-! grep -q 'TencentDB Agent Memory' "$TMP/docs/agent-orchestrator.md"
+test ! -e "$TMP/docs/agent-orchestrator.md"
 test ! -e "$TMP/scripts/agents/agent-memory"
 
 AGENT_HARNESS_NONINTERACTIVE=1 \
@@ -58,11 +72,17 @@ AGENT_HARNESS_NONINTERACTIVE=1 \
 "$ROOT/bin/agent-harness" memory --help >/dev/null
 "$ROOT/bin/agent-memory" --help >/dev/null
 
-# Bootstrap must migrate untouched generated AGENTS files so orchestration
-# requests are routed through the dispatcher instead of native agent delegation.
+# Bootstrap must migrate untouched generated AGENTS files to the current skill
+# routing without overwriting repository-owned contracts.
 grep -q 'OLD_AGENTS_BLOBS' "$ROOT/bootstrap.sh"
 grep -q '41adcfaf38b6ca2b8b9c2ec6005f4f75fb16832e' "$ROOT/bootstrap.sh"
+grep -q 'bc52e816056d09a119d7680039055a3b1f59e0a0' "$ROOT/bootstrap.sh"
 grep -q 'current orchestration routing' "$ROOT/bootstrap.sh"
+
+# init removes known generated orchestrator docs because orchestration now lives
+# in .agents/skills/repository-orchestrator/.
+grep -q 'remove_generated_orchestrator_doc' "$ROOT/bin/agent-harness"
+grep -q '7536e45d9a3a2759b3235dc51ba0f490e3f4c128' "$ROOT/bin/agent-harness"
 
 # Setup must delegate long-running agentmemory to the detached lifecycle helper.
 grep -q 'SERVICE_SCRIPT=.*agentmemory-service.sh' "$ROOT/scripts/setup/install-agentmemory.sh"
