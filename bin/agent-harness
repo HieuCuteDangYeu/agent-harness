@@ -31,14 +31,12 @@ agent-harness chatgpt-web <status|open|repair>
 agent-harness memory <start|status|stop|restart|logs|viewer|data-dir|doctor|upgrade> [...]
 
 ready options:
-  --yes                 Accept optional installer prompts.
-  --core-only           Install only repository harness files; no external add-ons.
-  --skip-ponytail       Do not install Ponytail.
-  --skip-chatgpt-web    Do not install codex-chatgpt-web.
-  --skip-agentmemory    Do not install/configure agentmemory.
-  --non-interactive     Never prompt; prepare what can be done safely and print pending steps.
-
-`ready` is the recommended one-command bootstrap for a development machine/project.
+  --yes
+  --core-only
+  --skip-ponytail
+  --skip-chatgpt-web
+  --skip-agentmemory
+  --non-interactive
 USAGE
 }
 
@@ -55,12 +53,8 @@ parse_target_and_flags() {
       -h|--help) usage; exit 0 ;;
       --*) echo "Unknown option: $1" >&2; exit 2 ;;
       *)
-        if [[ "$first" -eq 1 ]]; then
-          TARGET="$1"
-          first=0
-        else
-          echo "Unexpected argument: $1" >&2
-          exit 2
+        if [[ "$first" -eq 1 ]]; then TARGET="$1"; first=0
+        else echo "Unexpected argument: $1" >&2; exit 2
         fi
         ;;
     esac
@@ -71,10 +65,8 @@ parse_target_and_flags() {
 confirm() {
   local prompt="$1"
   local default_yes="${2:-0}"
-
   if [[ "$YES" -eq 1 ]]; then return 0; fi
   if [[ "$NONINTERACTIVE" -eq 1 || ! -t 0 ]]; then return 1; fi
-
   local answer
   if [[ "$default_yes" -eq 1 ]]; then
     read -r -p "$prompt [Y/n] " answer
@@ -86,24 +78,15 @@ confirm() {
 }
 
 copy_if_missing() {
-  local src="$1"
-  local dst="$2"
-
-  if [[ -e "$dst" ]]; then
-    echo "KEEP    $dst"
-    return
-  fi
-
+  local src="$1" dst="$2"
+  if [[ -e "$dst" ]]; then echo "KEEP    $dst"; return; fi
   mkdir -p "$(dirname "$dst")"
   cp -R "$src" "$dst"
   echo "CREATE  $dst"
 }
 
 replace_legacy_if_present() {
-  local src="$1"
-  local dst="$2"
-  local marker="$3"
-
+  local src="$1" dst="$2" marker="$3"
   if [[ -f "$dst" ]] && grep -qF "$marker" "$dst"; then
     cp "$src" "$dst"
     echo "MIGRATE $dst"
@@ -111,28 +94,25 @@ replace_legacy_if_present() {
 }
 
 remove_if_unchanged_hash() {
-  local dst="$1"
-  local expected_hash="$2"
-
+  local dst="$1" expected_hash="$2"
   if [[ -f "$dst" ]] && [[ "$(git hash-object "$dst" 2>/dev/null || true)" == "$expected_hash" ]]; then
     rm -f "$dst"
-    echo "REMOVE  $dst (obsolete generated template)"
+    echo "REMOVE  $dst (obsolete generated file)"
     rmdir "$(dirname "$dst")" 2>/dev/null || true
   fi
 }
 
 remove_generated_orchestrator_doc() {
-  local dst="$TARGET/docs/agent-orchestrator.md"
-  local hash
+  local dst="$TARGET/docs/agent-orchestrator.md" hash
   for hash in \
-    "25d3eac348f367c261a74cb381a276afe9066694" \
-    "5c5a38f6a330c1ac22055ab2c5bc37a92450e2b1" \
-    "3727166cebee784d9b50ce679ee9a7fc0f059a7a" \
-    "bd883e3adfb2b0173c482ddf3e5b69a97718d74b" \
-    "b76b8c4dcb6f05ea5f09a3c59805f14d9502f885" \
-    "2109e8a976d18cf10343e77cb708c63ec1e0f944" \
-    "9eecbcd78dae935f99627026c9a36698455402a1" \
-    "7536e45d9a3a2759b3235dc51ba0f490e3f4c128"; do
+    25d3eac348f367c261a74cb381a276afe9066694 \
+    5c5a38f6a330c1ac22055ab2c5bc37a92450e2b1 \
+    3727166cebee784d9b50ce679ee9a7fc0f059a7a \
+    bd883e3adfb2b0173c482ddf3e5b69a97718d74b \
+    b76b8c4dcb6f05ea5f09a3c59805f14d9502f885 \
+    2109e8a976d18cf10343e77cb708c63ec1e0f944 \
+    9eecbcd78dae935f99627026c9a36698455402a1 \
+    7536e45d9a3a2759b3235dc51ba0f490e3f4c128; do
     if [[ -f "$dst" ]] && [[ "$(git hash-object "$dst" 2>/dev/null || true)" == "$hash" ]]; then
       rm -f "$dst"
       echo "REMOVE  $dst (moved to repository-orchestrator skill)"
@@ -140,11 +120,9 @@ remove_generated_orchestrator_doc() {
       return
     fi
   done
-
   if [[ -f "$dst" ]] && grep -qF "TencentDB Agent Memory" "$dst"; then
     rm -f "$dst"
     echo "REMOVE  $dst (legacy generated orchestrator)"
-    rmdir "$(dirname "$dst")" 2>/dev/null || true
   fi
 }
 
@@ -160,55 +138,38 @@ resolve_target() {
 
 init_harness() {
   resolve_target
-
-  if [[ ! -d "$TARGET/.git" ]]; then
-    warn "$TARGET does not appear to be a Git repository."
-  fi
-
+  [[ -d "$TARGET/.git" ]] || warn "$TARGET does not appear to be a Git repository."
   log "Installing agent harness into: $TARGET"
   log ""
 
   copy_if_missing "$TEMPLATES/AGENTS.md" "$TARGET/AGENTS.md"
-  replace_legacy_if_present \
-    "$TEMPLATES/AGENTS.md" \
-    "$TARGET/AGENTS.md" \
-    'check shared memory when `agent-memory` is available'
+  replace_legacy_if_present "$TEMPLATES/AGENTS.md" "$TARGET/AGENTS.md" 'check shared memory when `agent-memory` is available'
 
-  install_skill "repository-orchestrator"
-  install_skill "repo-skill-bootstrap"
-  install_skill "skill-discovery"
-  install_skill "skill-maintenance"
-  install_skill "shared-memory"
-  replace_legacy_if_present \
-    "$TEMPLATES/.agents/skills/shared-memory/SKILL.md" \
-    "$TARGET/.agents/skills/shared-memory/SKILL.md" \
-    "TencentDB Agent Memory"
+  install_skill repository-orchestrator
+  install_skill repo-skill-bootstrap
+  install_skill skill-discovery
+  install_skill skill-maintenance
+  install_skill shared-memory
+  replace_legacy_if_present "$TEMPLATES/.agents/skills/shared-memory/SKILL.md" "$TARGET/.agents/skills/shared-memory/SKILL.md" "TencentDB Agent Memory"
 
   remove_if_unchanged_hash "$TARGET/.github/ISSUE_TEMPLATE/agent-task.md" "1a7563227f79eb2edd6ecb83ad4fd38fbadcaf35"
   remove_if_unchanged_hash "$TARGET/.github/pull_request_template.md" "180a428ed4da1e5fc621e8d86ddd6270f50e62e3"
-
-  copy_if_missing "$TEMPLATES/scripts/agents/create-worktree.sh" "$TARGET/scripts/agents/create-worktree.sh"
+  remove_if_unchanged_hash "$TARGET/scripts/agents/create-worktree.sh" "7a87ca8fc3505b4c5ccfd535bca6a81d216482f6"
   remove_generated_orchestrator_doc
 
-  if [[ -f "$TARGET/scripts/agents/agent-memory" ]] && \
-     grep -qF "TencentDB Agent Memory" "$TARGET/scripts/agents/agent-memory"; then
+  if [[ -f "$TARGET/scripts/agents/agent-memory" ]] && grep -qF "TencentDB Agent Memory" "$TARGET/scripts/agents/agent-memory"; then
     rm -f "$TARGET/scripts/agents/agent-memory"
     echo "REMOVE  $TARGET/scripts/agents/agent-memory (legacy Tencent helper)"
   fi
-
-  chmod +x "$TARGET/scripts/agents/create-worktree.sh"
+  rmdir "$TARGET/scripts/agents" 2>/dev/null || true
 
   log ""
   log "Harness files installed."
 }
 
 run_setup_script() {
-  local script="$1"
-  shift
-  if [[ ! -f "$SETUP_DIR/$script" ]]; then
-    warn "Missing setup helper: $SETUP_DIR/$script"
-    return 1
-  fi
+  local script="$1"; shift
+  [[ -f "$SETUP_DIR/$script" ]] || { warn "Missing setup helper: $SETUP_DIR/$script"; return 1; }
   bash "$SETUP_DIR/$script" "$@"
 }
 
@@ -223,65 +184,47 @@ ready_harness() {
 
   log ""
   log "== Machine capability detection =="
-  command -v git >/dev/null 2>&1 && ok "git" || warn "git not found"
-  command -v curl >/dev/null 2>&1 && ok "curl" || warn "curl not found"
-  command -v codex >/dev/null 2>&1 && ok "Codex detected" || warn "Codex not detected; install it separately before using Codex workflows."
-  if command -v agy >/dev/null 2>&1 || command -v antigravity >/dev/null 2>&1; then
-    ok "Antigravity CLI detected"
+  command -v git >/dev/null 2>&1 && ok git || warn "git not found"
+  command -v curl >/dev/null 2>&1 && ok curl || warn "curl not found"
+  command -v codex >/dev/null 2>&1 && ok "Codex detected" || warn "Codex not detected"
+  command -v agy >/dev/null 2>&1 && ok "Antigravity CLI detected" || warn "Antigravity CLI not detected (optional)"
+  if command -v node >/dev/null 2>&1 && command -v npx >/dev/null 2>&1 && [[ "$(node_major || echo 0)" -ge 20 ]]; then
+    ok "Node $(node -v) + npx"
   else
-    warn "Antigravity CLI not detected; this is optional."
-  fi
-
-  if command -v node >/dev/null 2>&1 && command -v npx >/dev/null 2>&1; then
-    major="$(node_major || echo 0)"
-    if [[ "$major" -ge 20 ]]; then
-      ok "Node $(node -v) + npx (agentmemory ready)"
-    else
-      warn "Node $(node -v) detected; agentmemory requires Node 20+."
-    fi
-  else
-    warn "Node.js 20+ with npm/npx is required for agentmemory."
+    warn "Node.js 20+ with npx is required for agentmemory"
   fi
 
   if [[ "$CORE_ONLY" -eq 1 ]]; then
-    SKIP_PONYTAIL=1
-    SKIP_CHATGPT_WEB=1
-    SKIP_AGENTMEMORY=1
+    SKIP_PONYTAIL=1; SKIP_CHATGPT_WEB=1; SKIP_AGENTMEMORY=1
   fi
 
   log ""
   if [[ "$SKIP_PONYTAIL" -eq 0 ]]; then
     if confirm "Install/update Ponytail for detected coding agents?" 1; then
-      AGENT_HARNESS_NONINTERACTIVE="$NONINTERACTIVE" run_setup_script install-ponytail.sh || warn "Ponytail setup had warnings."
-    else
-      warn "Ponytail setup skipped."
-    fi
+      AGENT_HARNESS_NONINTERACTIVE="$NONINTERACTIVE" run_setup_script install-ponytail.sh || warn "Ponytail setup had warnings"
+    else warn "Ponytail setup skipped"; fi
   fi
 
   log ""
   if [[ "$SKIP_CHATGPT_WEB" -eq 0 ]]; then
-    log "Codex Web GPT is unofficial browser automation. It uses your signed-in ChatGPT account."
-    log "Review its security model and OpenAI/workspace policies before enabling Full Harness."
+    log "Codex Web GPT is unofficial browser automation using your signed-in ChatGPT account."
     if confirm "Set up/open the Codex Web GPT launcher?" 0; then
       if run_setup_script chatgpt-web-control.sh status >/dev/null 2>&1; then
-        run_setup_script chatgpt-web-control.sh open || warn "Codex Web GPT launcher could not be opened."
+        run_setup_script chatgpt-web-control.sh open || warn "Codex Web GPT could not be opened"
       else
-        AGENT_HARNESS_NONINTERACTIVE="$NONINTERACTIVE" run_setup_script install-chatgpt-web.sh || warn "ChatGPT Web bridge setup had warnings."
+        AGENT_HARNESS_NONINTERACTIVE="$NONINTERACTIVE" run_setup_script install-chatgpt-web.sh || warn "ChatGPT Web bridge setup had warnings"
       fi
-    else
-      warn "ChatGPT Web bridge setup skipped."
-    fi
+    else warn "ChatGPT Web bridge setup skipped"; fi
   fi
 
   log ""
   if [[ "$SKIP_AGENTMEMORY" -eq 0 ]]; then
-    major="$(node_major || echo 0)"
-    if [[ "$major" -lt 20 ]] || ! command -v npx >/dev/null 2>&1; then
-      warn "Skipping agentmemory because Node.js 20+ with npx is unavailable."
-    elif confirm "Set up keyless local agentmemory (no API key)?" 1; then
-      AGENT_HARNESS_NONINTERACTIVE="$NONINTERACTIVE" run_setup_script install-agentmemory.sh || warn "agentmemory setup needs attention."
+    if [[ "$(node_major || echo 0)" -ge 20 ]] && command -v npx >/dev/null 2>&1; then
+      if confirm "Set up keyless local agentmemory (no API key)?" 1; then
+        AGENT_HARNESS_NONINTERACTIVE="$NONINTERACTIVE" run_setup_script install-agentmemory.sh || warn "agentmemory setup needs attention"
+      else warn "agentmemory setup skipped"; fi
     else
-      warn "agentmemory setup skipped."
+      warn "Skipping agentmemory because Node.js 20+ with npx is unavailable"
     fi
   fi
 
@@ -290,144 +233,56 @@ ready_harness() {
 
   cat <<'NEXT'
 
-== One-time actions that cannot be safely automated ==
+== One-time actions ==
 
-Codex hooks (if Ponytail and/or agentmemory were installed):
-  1. Launch `codex` in a terminal once.
-  2. Review the "Hooks need review" prompt and trust only the hooks you accept.
-  3. Restart Codex after approval.
+Codex hooks:
+  Launch `codex`, review `/hooks`, trust only accepted Ponytail/agentmemory hooks, then start a new thread.
 
-ChatGPT Web Full Harness (only if you installed Codex Web GPT):
-  1. Keep Codex Web GPT running while using ChatGPT Web models in Codex.
-  2. Sign in to ChatGPT in its embedded browser.
-  3. Run its browser smoke test and install the ChatGPT Web models.
-  4. Open its MCP page, create the tunnel, and follow Full Harness setup.
-  5. In ChatGPT Developer Mode, create the requested connector (currently `Codex Native2`).
-  6. Restart Codex after model/connector setup.
+ChatGPT Web Full Harness:
+  Keep Codex Web GPT running, sign in, run its smoke test, install Web models, enable Full Harness,
+  finish the connector setup, then restart Codex.
 
-Launcher lifecycle:
-  agent-harness chatgpt-web status
-  agent-harness chatgpt-web open
-  agent-harness chatgpt-web repair
-
-agentmemory:
-  - Runs detached; bootstrap does not occupy your terminal.
-  - Persistent memory data stays outside the project repository.
-  - No LLM API key is required by the harness default.
-  - REST/MCP: http://127.0.0.1:3111
-  - Viewer:   http://127.0.0.1:3113
-  - Local semantic embeddings are enabled; the first semantic request downloads MiniLM once.
-  - Codex and Antigravity are wired through agentmemory's supported MCP adapters when detected.
-
-Memory lifecycle:
-  agent-harness memory status
-  agent-harness memory data-dir
-  agent-harness memory start
-  agent-harness memory restart
-  agent-harness memory logs
-  agent-harness memory viewer
-  agent-harness memory doctor
-
-Coding flow:
-  1. ChatGPT Web orchestrates through the Codex Full Harness when enabled.
-  2. Explicit orchestration requests use the `repository-orchestrator` skill and detached dispatcher.
-  3. Agents use agentmemory MCP recall only when historical context materially helps.
-  4. Use `skill-discovery` for maintained external expertise.
-  5. Use `repo-skill-bootstrap` for repository-specific invariants.
-  6. Execute via Codex/Antigravity, verify with CI, and save only durable memory.
+Orchestration:
+  Codex work uses Codex native subagents. Antigravity work uses `agy`.
+  The harness helper manages isolated worktrees, verification, integration, and delivery.
+  It never launches a nested `codex exec` worker.
 NEXT
 }
 
 doctor_harness() {
-  local requested_target="${1:-$TARGET}"
-  TARGET="$requested_target"
+  TARGET="${1:-$TARGET}"
   resolve_target
   local failed=0
-
   check() {
-    if [[ -e "$TARGET/$1" ]]; then
-      echo "OK      $1"
-    else
-      echo "MISSING $1"
-      failed=1
-    fi
+    if [[ -e "$TARGET/$1" ]]; then echo "OK      $1"; else echo "MISSING $1"; failed=1; fi
   }
 
-  check "AGENTS.md"
-  check ".agents/skills/repository-orchestrator/SKILL.md"
-  check ".agents/skills/repo-skill-bootstrap/SKILL.md"
-  check ".agents/skills/skill-discovery/SKILL.md"
-  check ".agents/skills/skill-maintenance/SKILL.md"
-  check ".agents/skills/shared-memory/SKILL.md"
-  check "scripts/agents/create-worktree.sh"
-
-  if [[ -x "$TARGET/scripts/agents/create-worktree.sh" ]]; then
-    echo "OK      scripts/agents/create-worktree.sh executable"
-  else
-    echo "INVALID scripts/agents/create-worktree.sh is not executable"
-    failed=1
-  fi
+  check AGENTS.md
+  check .agents/skills/repository-orchestrator/SKILL.md
+  check .agents/skills/repo-skill-bootstrap/SKILL.md
+  check .agents/skills/skill-discovery/SKILL.md
+  check .agents/skills/skill-maintenance/SKILL.md
+  check .agents/skills/shared-memory/SKILL.md
 
   log ""
   log "External readiness (informational):"
-  command -v codex >/dev/null 2>&1 && ok "codex" || warn "codex not found"
-  command -v agy >/dev/null 2>&1 && ok "agy" || warn "agy not found (optional)"
+  command -v codex >/dev/null 2>&1 && ok codex || warn "codex not found"
+  command -v agy >/dev/null 2>&1 && ok agy || warn "agy not found (optional)"
   run_setup_script chatgpt-web-control.sh status || true
 
-  major="$(node_major || echo 0)"
-  if [[ "$major" -ge 20 ]] && command -v npx >/dev/null 2>&1; then
-    ok "Node $(node -v) + npx"
-  else
-    warn "Node.js 20+ with npx not ready for agentmemory"
-  fi
-
-  if command -v curl >/dev/null 2>&1 && curl -fsS --max-time 2 http://127.0.0.1:3111/agentmemory/livez >/dev/null 2>&1; then
-    ok "agentmemory reachable on :3111"
-  else
-    warn "agentmemory not reachable on :3111 (optional)"
-  fi
-
-  if [[ -f "$HOME/.codex/config.toml" ]] && grep -q '^\[mcp_servers\.agentmemory\]' "$HOME/.codex/config.toml"; then
-    ok "agentmemory MCP configured for Codex"
-  elif command -v codex >/dev/null 2>&1; then
-    warn "agentmemory MCP not found in ~/.codex/config.toml"
-  fi
-
+  if [[ "$(node_major || echo 0)" -ge 20 ]] && command -v npx >/dev/null 2>&1; then ok "Node $(node -v) + npx"; else warn "Node.js 20+ with npx not ready"; fi
+  if command -v curl >/dev/null 2>&1 && curl -fsS --max-time 2 http://127.0.0.1:3111/agentmemory/livez >/dev/null 2>&1; then ok "agentmemory reachable on :3111"; else warn "agentmemory not reachable on :3111 (optional)"; fi
+  if [[ -f "$HOME/.codex/config.toml" ]] && grep -q '^\[mcp_servers\.agentmemory\]' "$HOME/.codex/config.toml"; then ok "agentmemory MCP configured for Codex"; fi
   return "$failed"
 }
 
 case "$COMMAND" in
-  init)
-    TARGET="${1:-.}"
-    init_harness
-    ;;
-  ready|setup)
-    ready_harness "$@"
-    ;;
-  doctor)
-    TARGET="${1:-.}"
-    doctor_harness "$TARGET"
-    ;;
-  version)
-    if [[ -f "$VERSION_FILE" ]]; then
-      cat "$VERSION_FILE"
-    else
-      echo "unknown"
-      exit 1
-    fi
-    ;;
-  chatgpt-web)
-    exec bash "$SETUP_DIR/chatgpt-web-control.sh" "$@"
-    ;;
-  memory)
-    exec bash "$SETUP_DIR/agentmemory-service.sh" "$@"
-    ;;
-  help|--help|-h)
-    usage
-    ;;
-  *)
-    echo "Unknown command: $COMMAND" >&2
-    usage >&2
-    exit 1
-    ;;
+  init) TARGET="${1:-.}"; init_harness ;;
+  ready|setup) ready_harness "$@" ;;
+  doctor) doctor_harness "${1:-.}" ;;
+  version) cat "$VERSION_FILE" ;;
+  chatgpt-web) exec bash "$SETUP_DIR/chatgpt-web-control.sh" "$@" ;;
+  memory) exec bash "$SETUP_DIR/agentmemory-service.sh" "$@" ;;
+  help|--help|-h) usage ;;
+  *) echo "Unknown command: $COMMAND" >&2; usage >&2; exit 1 ;;
 esac

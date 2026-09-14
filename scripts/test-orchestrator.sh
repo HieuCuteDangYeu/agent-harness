@@ -17,159 +17,100 @@ printf 'base\n' > "$REPO/base.txt"
 git -C "$REPO" add .
 git -C "$REPO" commit -qm base
 
-cat > "$MOCK_BIN/codex" <<'MOCK'
-#!/usr/bin/env bash
-set -euo pipefail
-result=""
-seen_approval=0
-seen_ephemeral=0
-[[ -n "${CODEX_SQLITE_HOME:-}" && -d "$CODEX_SQLITE_HOME" && -w "$CODEX_SQLITE_HOME" ]]
-[[ -n "${XDG_RUNTIME_DIR:-}" && -d "$XDG_RUNTIME_DIR" && -w "$XDG_RUNTIME_DIR" ]]
-case "$CODEX_SQLITE_HOME" in
-  */runtime/*/codex-sqlite) ;;
-  *) echo "Codex SQLite state was not redirected into executor runtime" >&2; exit 92 ;;
-esac
-while (($#)); do
-  case "$1" in
-    --approve-for-me)
-      echo "obsolete --approve-for-me used" >&2
-      exit 91
-      ;;
-    --ask-for-approval)
-      [[ "${2:-}" == "never" ]]
-      seen_approval=1
-      shift 2
-      ;;
-    --ephemeral)
-      seen_ephemeral=1
-      shift
-      ;;
-    --output-last-message)
-      result="$2"
-      shift 2
-      ;;
-    *) shift ;;
-  esac
-done
-[[ "$seen_approval" -eq 1 ]]
-[[ "$seen_ephemeral" -eq 1 ]]
-cat >/dev/null || true
-if [[ "${AGENT_HARNESS_TASK_ID:-}" == "review" ]]; then
-  printf 'Review complete.\nVERDICT: PASS\n' > "$result"
-else
-  printf '%s\n' "$AGENT_HARNESS_TASK_ID" > "task-$AGENT_HARNESS_TASK_ID.txt"
-  printf 'done\n' > "$result"
-fi
-MOCK
-chmod +x "$MOCK_BIN/codex"
-
 cat > "$MOCK_BIN/agy" <<'MOCK'
 #!/usr/bin/env bash
 set -euo pipefail
-[[ -n "${XDG_RUNTIME_DIR:-}" && -d "$XDG_RUNTIME_DIR" && -w "$XDG_RUNTIME_DIR" ]]
-case "$XDG_RUNTIME_DIR" in
-  */runtime/*/xdg-runtime) ;;
-  *) echo "Antigravity runtime was not isolated" >&2; exit 93 ;;
-esac
-printf '%s\n' "$AGENT_HARNESS_TASK_ID" > "task-$AGENT_HARNESS_TASK_ID.txt"
-printf 'done\n'
+if [[ "${AGENT_HARNESS_TASK_ID:-}" == "review" ]]; then
+  printf 'Review complete.\nVERDICT: PASS\n'
+else
+  printf '%s\n' "$AGENT_HARNESS_TASK_ID" > "task-$AGENT_HARNESS_TASK_ID.txt"
+  printf 'done\n'
+fi
 MOCK
 chmod +x "$MOCK_BIN/agy"
 
 cat > "$REPO/plan.json" <<'JSON'
 {
   "version": 1,
-  "name": "smoke",
-  "goal": "prove dependency scheduling, codex/agy execution, runtime isolation, and integration",
-  "base": "HEAD",
+  "name": "native-smoke",
+  "goal": "prove native Codex worktree handoff plus agy integration",
   "maxParallel": 2,
   "tasks": [
     {"id":"a","agent":"codex","prompt":"make a","verify":["test -f task-a.txt"]},
-    {"id":"b","agent":"agy","prompt":"make b","verify":["test -f task-b.txt"]},
-    {"id":"c","agent":"codex","prompt":"make c","dependsOn":["a","b"],"verify":["test -f task-a.txt && test -f task-b.txt && test -f task-c.txt"]}
+    {"id":"b","agent":"agy","prompt":"make b","dependsOn":["a"],"verify":["test -f task-a.txt && test -f task-b.txt"]}
   ],
-  "review": {"agent":"codex"}
+  "review": {"agent":"codex","prompt":"review the integrated result"}
 }
 JSON
 
 git -C "$REPO" add plan.json
 git -C "$REPO" commit -qm plan
-
-(
-  cd "$REPO"
-  PATH="$MOCK_BIN:$PATH" node "$ROOT/scripts/orchestrate.mjs" plan.json --dry-run > "$TMP/dry.log"
-  grep -q 'TASK    b -> agy ' "$TMP/dry.log"
-  PATH="$MOCK_BIN:$PATH" node "$ROOT/scripts/orchestrate.mjs" plan.json > "$TMP/output.log"
-)
-
-BRANCH="$(sed -n 's/^BRANCH  //p' "$TMP/output.log")"
-STATE="$(sed -n 's/^STATE   //p' "$TMP/output.log")"
-test -n "$BRANCH"
-test -n "$STATE"
-git -C "$REPO" show "$BRANCH:task-a.txt" >/dev/null
-git -C "$REPO" show "$BRANCH:task-b.txt" >/dev/null
-git -C "$REPO" show "$BRANCH:task-c.txt" >/dev/null
-
-node - "$STATE/summary.json" <<'NODE'
-const fs = require('fs');
-const summary = JSON.parse(fs.readFileSync(process.argv[2], 'utf8'));
-if (summary.status !== 'success') process.exit(1);
-if (summary.review?.verdict !== 'PASS') process.exit(1);
-if (summary.tasks.some((task) => task.status !== 'success')) process.exit(1);
-NODE
-
-rm -rf "$REPO/.git/agent-harness"
-
 printf 'keep me dirty\n' > "$REPO/local-dirty.txt"
-START_OUTPUT="$(
-  cd "$REPO"
-  PATH="$MOCK_BIN:$PATH" AGENT_HARNESS_STATE_DIR="$STATE_DIR" \
-    node "$ROOT/scripts/orchestrate.mjs" start plan.json
-)"
-RUN_ID="$(printf '%s\n' "$START_OUTPUT" | sed -n 's/^RUN     //p')"
-test -n "$RUN_ID"
-printf '%s\n' "$START_OUTPUT" | grep -q '^STATUS  started$'
-printf '%s\n' "$START_OUTPUT" | grep -q '^BASELINE caller-worktree '
 
-STATUS_OUTPUT=""
-for _ in $(seq 1 200); do
-  STATUS_OUTPUT="$(
+run_harness() {
+  (
     cd "$REPO"
-    PATH="$MOCK_BIN:$PATH" AGENT_HARNESS_STATE_DIR="$STATE_DIR" \
-      node "$ROOT/scripts/orchestrate.mjs" status "$RUN_ID"
-  )"
-  if printf '%s\n' "$STATUS_OUTPUT" | grep -q '^STATUS  success$'; then
-    break
-  fi
-  sleep 0.05
-done
-printf '%s\n' "$STATUS_OUTPUT" | grep -q '^STATUS  success$'
-printf '%s\n' "$STATUS_OUTPUT" | grep -q '^APPLIED yes$'
-printf '%s\n' "$STATUS_OUTPUT" | grep -q '^REVIEW  success verdict=PASS$'
+    PATH="$MOCK_BIN:$PATH" AGENT_HARNESS_STATE_DIR="$STATE_DIR" node "$ROOT/scripts/orchestrate.mjs" "$@"
+  )
+}
 
-DETACHED_STATE="$(printf '%s\n' "$STATUS_OUTPUT" | sed -n 's/^STATE   //p')"
-test -f "$DETACHED_STATE/summary.json"
-test -f "$DETACHED_STATE/orchestrator.log"
-test -f "$DETACHED_STATE/result.patch"
-test -d "$DETACHED_STATE/runtime"
-(cd "$REPO" && AGENT_HARNESS_STATE_DIR="$STATE_DIR" node "$ROOT/scripts/orchestrate.mjs" logs "$RUN_ID" 40) | grep -q '^RESULT  success$'
+PREPARE_OUTPUT="$(run_harness prepare plan.json)"
+RUN_ID="$(printf '%s\n' "$PREPARE_OUTPUT" | sed -n 's/^RUN     //p')"
+test -n "$RUN_ID"
+printf '%s\n' "$PREPARE_OUTPUT" | grep -q '^BASELINE caller-worktree '
 
-test -f "$REPO/local-dirty.txt"
-grep -q 'keep me dirty' "$REPO/local-dirty.txt"
+READY_OUTPUT="$(run_harness ready "$RUN_ID")"
+printf '%s\n' "$READY_OUTPUT" | grep -q '^READY   a agent=codex$'
+! printf '%s\n' "$READY_OUTPUT" | grep -q '^READY   b '
+
+TASK_OUTPUT="$(run_harness task "$RUN_ID" a)"
+WORKTREE_A="$(printf '%s\n' "$TASK_OUTPUT" | sed -n 's/^WORKTREE //p')"
+test -d "$WORKTREE_A"
+printf '%s\n' "$TASK_OUTPUT" | grep -q '^PROMPT_BEGIN$'
+printf '%s\n' "$TASK_OUTPUT" | grep -q 'Do not create or delegate to additional agents'
+printf 'a\n' > "$WORKTREE_A/task-a.txt"
+run_harness complete "$RUN_ID" a | grep -q '^DONE    a$'
+
+READY_OUTPUT="$(run_harness ready "$RUN_ID")"
+printf '%s\n' "$READY_OUTPUT" | grep -q '^READY   b agent=agy$'
+run_harness agy "$RUN_ID" b | grep -q '^DONE    b$'
+
+STATUS_OUTPUT="$(run_harness status "$RUN_ID")"
+printf '%s\n' "$STATUS_OUTPUT" | grep -q '^STATUS  review_pending$'
+printf '%s\n' "$STATUS_OUTPUT" | grep -q '^TASK    a success agent=codex'
+printf '%s\n' "$STATUS_OUTPUT" | grep -q '^TASK    b success agent=agy'
+
+REVIEW_OUTPUT="$(run_harness review-task "$RUN_ID")"
+REVIEW_WORKTREE="$(printf '%s\n' "$REVIEW_OUTPUT" | sed -n 's/^WORKTREE //p')"
+test -d "$REVIEW_WORKTREE"
+printf '%s\n' "$REVIEW_OUTPUT" | grep -q '^REVIEW  agent=codex$'
+run_harness review "$RUN_ID" PASS | grep -q '^REVIEW  success verdict=PASS$'
+
+DELIVER_OUTPUT="$(run_harness deliver "$RUN_ID")"
+printf '%s\n' "$DELIVER_OUTPUT" | grep -q '^STATUS  success$'
+printf '%s\n' "$DELIVER_OUTPUT" | grep -q '^APPLIED yes$'
+
 test -f "$REPO/task-a.txt"
 test -f "$REPO/task-b.txt"
-test -f "$REPO/task-c.txt"
+test -f "$REPO/local-dirty.txt"
+grep -q 'keep me dirty' "$REPO/local-dirty.txt"
 test ! -e "$REPO/.git/agent-harness"
-case "$DETACHED_STATE" in
-  "$REPO/.git"/*) echo "detached state must not live under caller .git" >&2; exit 1 ;;
-esac
 
+FINAL_STATUS="$(run_harness status "$RUN_ID")"
+printf '%s\n' "$FINAL_STATUS" | grep -q '^STATUS  success$'
+printf '%s\n' "$FINAL_STATUS" | grep -q '^REVIEW  success agent=codex verdict=PASS$'
+
+# Obsolete executors are rejected before any run is prepared.
 cat > "$REPO/gemini-plan.json" <<'JSON'
 {"version":1,"goal":"reject obsolete executor","tasks":[{"id":"x","agent":"gemini","prompt":"x"}]}
 JSON
-if (cd "$REPO" && PATH="$MOCK_BIN:$PATH" node "$ROOT/scripts/orchestrate.mjs" gemini-plan.json --dry-run >/dev/null 2>&1); then
-  echo "gemini must not be accepted as a dispatcher executor" >&2
+if run_harness prepare gemini-plan.json >/dev/null 2>&1; then
+  echo "gemini must not be accepted as an executor" >&2
   exit 1
 fi
+
+# Codex is never launched as a nested CLI worker by the helper.
+! grep -q "runProcess('codex'" "$ROOT/scripts/orchestrator/core.mjs"
+! grep -q 'CODEX_SQLITE_HOME' "$ROOT/scripts/orchestrator/core.mjs"
 
 echo "Orchestrator smoke test passed."
