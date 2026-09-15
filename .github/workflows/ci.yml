@@ -28,4 +28,4 @@ jobs:
           bash -n scripts/setup/orca-control.sh
 
       - name: Run harness smoke test
-        run: ./scripts/test-harness.sh
+        run: bash -x scripts/test-harness.sh
