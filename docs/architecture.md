@@ -1,149 +1,226 @@
 # Architecture
 
-`agent-harness` is now a setup and repository-policy layer around Orca rather than a second orchestration runtime.
+`agent-harness` is a **workflow/policy and integration layer around Orca**, not a second orchestration runtime.
+
+The preferred human experience is the Orca desktop GUI. The preferred agent execution surface is Orca's official Agent Skills and live version-matched guides.
 
 ```text
-You
- ↓
-ChatGPT Web / Codex parent session in Orca
- ↓
-repository-orchestrator policy
- ↓
-Orca live orchestration skill
- ↓
+You in Orca GUI
+      ↓
+parent Codex / ChatGPT Web session
+      ↓
+AGENTS.md workflow policy
+      ↓
+Orca official orchestration skill
+      ↓
 Orca Run + worktrees + worker sessions
  ├─ Codex
  ├─ Antigravity (`agy`)
- └─ other Orca-supported agents when explicitly useful
- ↓
-verification task(s) + independent review
- ↓
-decision gate
- ↓
-local review/integration
+ └─ other Orca-supported agents only when useful
+      ↓
+verification + independent review
+      ↓
+PASS / BLOCK decision gate
+      ↓
+review integrated diff in Orca GUI
+      ↓
+ship only when explicitly authorized
 ```
+
+## Four layers
+
+### 1. Human control plane: Orca GUI
+
+The Orca desktop app is the source of truth for the human workflow:
+
+- repositories and projects
+- worktrees/workspaces
+- agent tabs and multiple sessions
+- Run/task visibility
+- model/effort selection where exposed
+- agent activity/status
+- browser/design/device surfaces
+- diff review and annotations
+- commit/push/PR controls
+- skill visibility and updates
+
+The user should not need to reproduce normal GUI actions through `agent-harness` commands.
+
+### 2. Agent execution plane: Orca Skills
+
+Agents use Orca's maintained skills and live guides for capability-specific operations.
+
+The important generic skills include:
+
+- `orca-cli`
+- `orchestration`
+- `computer-use`
+- `orca-emulator-android` when Android device/emulator work is needed
+
+Before mutating orchestration state, the parent must load Orca's live, version-matched orchestration guide rather than relying on stale command syntax copied into the repository.
+
+Orca therefore owns:
+
+- Run/task graph state
+- worktree creation/lifecycle
+- worker sessions and status
+- Codex / Antigravity launches
+- worker messages and recovery
+- model/reasoning-effort options
+- decision gates
+- review/diff surfaces
+
+### 3. Repository policy plane: AGENTS.md + project-specific skills
+
+`AGENTS.md` contains the workflow rules that Orca does not know automatically, such as:
+
+- source-of-truth priority
+- when to orchestrate versus stay single-agent
+- worker preference
+- verification/review requirements
+- dirty-working-tree behavior
+- memory policy
+- YAGNI/minimal-change expectations
+- remote push/PR/merge safety
+
+Repository-local `.agents/skills/` should be used only for durable, non-obvious project-specific invariants or procedures.
+
+Examples:
+
+- authentication/authorization invariants unique to the repository
+- event/outbox/idempotency guarantees
+- service ownership boundaries
+- persistence conventions
+- media-processing workflows
+- release/deployment procedures specific to the project
+
+Generic orchestration, generic skill discovery, generic framework knowledge, and generic memory instructions should not become a second capability layer when Orca or an installed maintained skill already provides them.
+
+The generic harness skills that remain are compatibility/policy shims for existing bootstrapped repositories; they should delegate to Orca rather than duplicate Orca's implementation.
+
+### 4. Integration plane: agent-harness helpers
+
+The harness installs or controls optional integrations that are outside Orca's core responsibility:
+
+- Ponytail
+- agentmemory
+- Codex Web GPT
+- Orca CLI/skill setup helpers
+- generated `AGENTS.md`
+
+This layer should stay thin.
 
 ## Why Orca owns orchestration
 
-Orca already provides the primitives this repository previously implemented itself: worktree-native isolation, multiple live agent sessions, Runs/tasks, supervised workers, messages, model/effort overrides, progress/status, and decision gates.
+Orca already provides worktree-native isolation, multiple live agent sessions, Runs/tasks, worker supervision, messages, model/effort controls, status, diff review, and gates.
 
-Maintaining a second DAG/worktree/executor layer underneath Orca would create two sources of truth for ownership, retries, Git state, and worker lifecycle. Version 0.8 therefore removes the custom `agent-harness orchestrate` runtime and the custom host-side Antigravity runner.
+Maintaining another DAG/worktree/executor system underneath Orca would create competing sources of truth for ownership, retries, Git state, and worker lifecycle.
 
-## Parent orchestrator
+Therefore:
 
-The parent session may be normal Codex or a ChatGPT Web model reached through Codex Web GPT.
+- no custom `agent-harness orchestrate` runtime
+- no custom Antigravity host runner
+- no sibling implementation workers outside an active Orca Run
+- no parent implementation of a task currently owned by an Orca worker
 
-`AGENTS.md` routes explicit multi-agent requests to `.agents/skills/repository-orchestrator/SKILL.md`. That local skill contains repository policy only. Before it mutates a Run it loads Orca's version-matched live `orchestration` guide.
+## Parent session
 
-This keeps command syntax owned by Orca while preserving our durable rules around repository context, verification, review, scope, and remote-operation safety.
-
-## Orca execution plane
-
-Orca owns:
-
-- Run/task graph state
-- Git worktree creation and lifecycle
-- worker sessions and status
-- Codex and Antigravity launches
-- worker messages/recovery controls
-- per-worker model and reasoning-effort options
-- decision gates
-- diff/review surfaces
-
-The harness does not start sibling implementation workers outside Orca during an active Run.
-
-## Repository-policy layer
-
-The harness still owns or installs:
-
-- `AGENTS.md`
-- repository-specific `.agents/skills/`
-- `repository-orchestrator` policy wrapper
-- `repo-skill-bootstrap`
-- `skill-discovery`
-- `skill-maintenance`
-- `shared-memory`
-- Ponytail setup
-- agentmemory setup/service helpers
-- Codex Web GPT setup/control
-- Orca CLI/skill discovery helpers
-
-This is deliberately smaller than the old orchestration engine.
-
-## Orca skill integration
-
-The harness resolves Orca using `ORCA_CLI_COMMAND`, `orca-dev`, Linux `orca-ide`, then `orca`.
-
-`agent-harness orca setup` installs Orca's `orca-cli` and `orchestration` skills through Orca's own CLI. When `adb` is available it also installs `orca-emulator-android`.
-
-Agents should use:
-
-```bash
-agent-harness orca guide
-```
-
-before changing orchestration state. This delegates command/version compatibility to Orca rather than freezing Orca CLI flags inside this repository.
-
-## Codex Web GPT
-
-Codex Web GPT remains optional parent transport only:
+The parent may be ordinary Codex or a ChatGPT Web model reached through Codex Web GPT.
 
 ```text
-ChatGPT Web model
-      ↓
+ChatGPT Web model (optional)
+        ↓
 Codex Web GPT bridge
-      ↓
-parent Codex session inside Orca
-      ↓
+        ↓
+parent Codex session in Orca
+        ↓
 Orca orchestration
 ```
 
-It is never a repository worker.
+Codex Web GPT is never a repository worker. It is only transport for the parent model.
 
-## Antigravity
+## Worker roles
 
-Antigravity is launched directly by Orca as a supported agent. The custom `agent-harness` host runner is gone.
+**Codex** is the default implementation/debugging/repository-analysis/test worker.
 
-This is simpler because Orca already owns the agent process, worktree cwd, session status, and UI. For Android work, Orca's Android skill can use adb-connected devices/emulators when the host has access.
+**Antigravity** is useful for UI/device/visual work, emulator-oriented tasks, focused implementation, or independent review when it materially helps.
+
+Other Orca-supported agents are allowed only when they provide a meaningful capability or independence boundary.
+
+For substantial work, the default task graph is:
+
+```text
+implementation -> verification -> independent review -> PASS/BLOCK gate
+```
+
+Split further only for real ownership or dependency boundaries.
+
+## Skill discovery
+
+Use Orca's Skills UI, the agent's discovered skill picker, and Orca's built-in skill discovery / Find Skills surface when available before creating a local skill.
+
+Prefer maintained external skills with inspectable provenance over copying generic knowledge into the repository.
+
+A new local skill should be created only when the knowledge is:
+
+- repository-specific
+- stable across multiple future tasks
+- non-obvious from nearby code
+- important enough that violating it could cause correctness, security, or operational problems
 
 ## Dirty checkout boundary
 
-Orca worktrees start from Git refs or commits and are clean checkouts. They do not automatically snapshot uncommitted changes from another checkout.
+Orca worktrees start from Git refs/commits. They do not automatically inherit uncommitted edits from another checkout.
 
-That differs from the old harness shadow-repository behavior. The repository-orchestrator policy therefore checks for relevant dirty state before creating a Run and fails closed rather than assuming workers can see it.
+Before a Run depends on local changes, inspect `git status`. If those edits matter, commit/snapshot them or continue from an Orca-managed branch/worktree that already contains them.
 
-If current edits matter, the user should commit/snapshot them or orchestrate from an Orca-managed branch/worktree containing those changes.
+Agents must not silently stash, commit, or mutate the caller checkout merely to make it visible to a worker.
 
 ## Verification and review
 
-Orca's flexibility does not weaken the repository contract. For substantial changes, the task graph should include explicit verification and an independent review followed by a decision gate.
+A worker self-report is not verification evidence.
 
-A worker saying "tests pass" is not enough when the plan requires evidence. The orchestrator should capture actual command/test results in the appropriate Orca task/session and block the gate on failures.
+For substantial changes, keep verification and final review explicit. Run the narrowest meaningful checks first and block PASS when a required test/check fails.
 
-## Shared memory and skills
+The final reviewer should be independent from the implementation worker when practical.
 
-**agentmemory** remains selective historical context. Current code and task requirements always override it.
+## Shared memory
 
-**Ponytail** remains minimal-change/YAGNI guidance for supported coding agents.
-
-**Repository skills** remain the durable source for project-specific architecture, security, persistence, messaging, operational, and domain procedures.
-
-## Authority
+agentmemory is advisory historical context, not a source of truth.
 
 ```text
 explicit task requirements
-    > current code/tests
-    > AGENTS.md + repository skills
+    > current repository code/tests
+    > AGENTS.md + repository-specific skills
     > agentmemory
-    > general research
+    > external/general research
 ```
 
-## Safety
+Retrieve memory selectively and save only concise, verified lessons. Never store secrets, raw transcripts, or reproducible logs merely because they exist.
 
-- review Orca agent permission defaults before autonomous runs
-- never store secrets in memory or task packets
-- do not create duplicate sibling workers outside Orca for an active Run
-- do not assume uncommitted caller changes are present in new Orca worktrees
-- keep verification and final review explicit for substantial work
-- remote push/merge stays under user control unless explicitly authorized
-- simplicity must not remove auth, validation, transactions, idempotency, concurrency, data integrity, security, error handling, or accessibility controls
+## Ponytail / simplicity
+
+Follow minimal-change/YAGNI guidance, but never simplify away required:
+
+- authentication
+- authorization
+- trust-boundary validation
+- transactions
+- concurrency protection
+- idempotency guarantees
+- data-integrity checks
+- error handling
+- security controls
+- accessibility requirements
+
+## Remote operations
+
+Remote delivery remains user-controlled.
+
+Do not push, create a remote PR, or merge unless explicitly requested. When shipping is authorized, prefer Orca's GUI review/commit/push/PR surfaces so the final integrated diff remains visible to the user.
+
+## Codex Web GPT hook boundary
+
+Codex Web GPT manages its own Codex `Interrupt` lifecycle hook and validates it against an integration journal. Other hook/trust operations may cause Codex to normalize `~/.codex/config.toml`.
+
+If the bridge reports an inconsistent interrupt hook, verify the actual managed fragment and journal before changing anything. Do not delete unrelated Orca, Ponytail, or agentmemory hook state. Orca's Agent status hooks can be disabled temporarily from **Settings → Agents** while diagnosing conflicts.
