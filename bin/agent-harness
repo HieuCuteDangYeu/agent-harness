@@ -12,6 +12,7 @@ if [[ $# -gt 0 ]]; then shift; fi
 TARGET="."
 YES=0
 CORE_ONLY=0
+SKIP_ORCA=0
 SKIP_PONYTAIL=0
 SKIP_CHATGPT_WEB=0
 SKIP_AGENTMEMORY=0
@@ -27,13 +28,14 @@ agent-harness init [path]
 agent-harness ready [path] [options]
 agent-harness doctor [path]
 agent-harness version
+agent-harness orca <path|status|open|setup|update|guide|doctor>
 agent-harness chatgpt-web <status|open|repair>
 agent-harness memory <start|status|stop|restart|logs|viewer|data-dir|doctor|upgrade> [...]
-agent-harness agy <start|status|stop|restart|doctor|logs|queue-dir>
 
 ready options:
   --yes
   --core-only
+  --skip-orca
   --skip-ponytail
   --skip-chatgpt-web
   --skip-agentmemory
@@ -47,6 +49,7 @@ parse_target_and_flags() {
     case "$1" in
       --yes|-y) YES=1 ;;
       --core-only) CORE_ONLY=1 ;;
+      --skip-orca) SKIP_ORCA=1 ;;
       --skip-ponytail) SKIP_PONYTAIL=1 ;;
       --skip-chatgpt-web) SKIP_CHATGPT_WEB=1 ;;
       --skip-agentmemory|--skip-memory) SKIP_AGENTMEMORY=1 ;;
@@ -116,7 +119,7 @@ remove_generated_orchestrator_doc() {
     7536e45d9a3a2759b3235dc51ba0f490e3f4c128; do
     if [[ -f "$dst" ]] && [[ "$(git hash-object "$dst" 2>/dev/null || true)" == "$hash" ]]; then
       rm -f "$dst"
-      echo "REMOVE  $dst (moved to repository-orchestrator skill)"
+      echo "REMOVE  $dst (orchestration policy moved to skills)"
       rmdir "$(dirname "$dst")" 2>/dev/null || true
       return
     fi
@@ -183,27 +186,32 @@ ready_harness() {
   parse_target_and_flags "$@"
   init_harness
 
+  if [[ "$CORE_ONLY" -eq 1 ]]; then
+    SKIP_ORCA=1; SKIP_PONYTAIL=1; SKIP_CHATGPT_WEB=1; SKIP_AGENTMEMORY=1
+  fi
+
   log ""
   log "== Machine capability detection =="
   command -v git >/dev/null 2>&1 && ok git || warn "git not found"
   command -v curl >/dev/null 2>&1 && ok curl || warn "curl not found"
   command -v codex >/dev/null 2>&1 && ok "Codex detected" || warn "Codex not detected"
-  if command -v agy >/dev/null 2>&1; then
-    ok "Antigravity CLI detected"
-    if [[ "$CORE_ONLY" -eq 0 ]]; then
-      run_setup_script agy-runner-service.sh restart || warn "Antigravity host runner could not start; run 'agent-harness agy doctor' from a normal terminal"
+  command -v agy >/dev/null 2>&1 && ok "Antigravity CLI detected" || warn "Antigravity CLI not detected (optional)"
+
+  local orca_path=""
+  orca_path="$(run_setup_script orca-control.sh path 2>/dev/null || true)"
+  if [[ -n "$orca_path" ]]; then
+    ok "Orca CLI detected: $orca_path"
+    if [[ "$SKIP_ORCA" -eq 0 ]]; then
+      run_setup_script orca-control.sh setup || warn "Orca skill setup needs attention"
     fi
   else
-    warn "Antigravity CLI not detected (optional)"
+    warn "Orca CLI not detected. Install Orca from https://www.onorca.dev/docs/install and register its CLI."
   fi
+
   if command -v node >/dev/null 2>&1 && command -v npx >/dev/null 2>&1 && [[ "$(node_major || echo 0)" -ge 20 ]]; then
     ok "Node $(node -v) + npx"
   else
     warn "Node.js 20+ with npx is required for agentmemory"
-  fi
-
-  if [[ "$CORE_ONLY" -eq 1 ]]; then
-    SKIP_PONYTAIL=1; SKIP_CHATGPT_WEB=1; SKIP_AGENTMEMORY=1
   fi
 
   log ""
@@ -243,21 +251,20 @@ ready_harness() {
 
 == One-time actions ==
 
+Orca:
+  Open Orca, add this repository, and review Settings -> Agents permissions before autonomous runs.
+  Orca owns Runs, worktrees, worker sessions, messages, and decision gates.
+
 Codex hooks:
-  Launch `codex`, review `/hooks`, trust only accepted Ponytail/agentmemory hooks, then start a new thread.
+  Launch Codex, review `/hooks`, trust only accepted Ponytail/agentmemory hooks, then start a new thread.
 
 ChatGPT Web Full Harness:
   Keep Codex Web GPT running, sign in, run its smoke test, install Web models, enable Full Harness,
-  finish the connector setup, then restart Codex.
-
-Antigravity host runner:
-  Bootstrap starts it from your normal terminal when `agy` is installed.
-  Check it with `agent-harness agy status` or run the optional live smoke test with `agent-harness agy doctor`.
+  finish the connector setup, then launch the parent Codex session from Orca.
 
 Orchestration:
-  Codex work uses Codex native subagents. Antigravity work is sent to the host-side `agy` runner.
-  The harness helper manages isolated worktrees, verification, integration, and delivery.
-  It never launches a nested `codex exec` worker or starts `agy` inside the Codex/Web sandbox.
+  Ask for the repository orchestrator normally. The local policy loads Orca's live version-matched
+  orchestration guide; Orca can then coordinate Codex and Antigravity sessions in separate worktrees.
 NEXT
 }
 
@@ -279,14 +286,16 @@ doctor_harness() {
   log ""
   log "External readiness (informational):"
   command -v codex >/dev/null 2>&1 && ok codex || warn "codex not found"
-  if command -v agy >/dev/null 2>&1; then
-    ok agy
-    run_setup_script agy-runner-service.sh status || warn "agy host runner not running; start it from a normal terminal with 'agent-harness agy start'"
-  else
-    warn "agy not found (optional)"
-  fi
-  run_setup_script chatgpt-web-control.sh status || true
+  command -v agy >/dev/null 2>&1 && ok agy || warn "agy not found (optional)"
 
+  if run_setup_script orca-control.sh path >/dev/null 2>&1; then
+    run_setup_script orca-control.sh guide >/dev/null 2>&1 && ok "Orca orchestration guide available" || warn "Orca orchestration skill missing; run 'agent-harness orca setup'"
+    run_setup_script orca-control.sh status >/dev/null 2>&1 && ok "Orca runtime reachable" || warn "Orca runtime not reachable; run 'agent-harness orca open'"
+  else
+    warn "Orca CLI not found"
+  fi
+
+  run_setup_script chatgpt-web-control.sh status || true
   if [[ "$(node_major || echo 0)" -ge 20 ]] && command -v npx >/dev/null 2>&1; then ok "Node $(node -v) + npx"; else warn "Node.js 20+ with npx not ready"; fi
   if command -v curl >/dev/null 2>&1 && curl -fsS --max-time 2 http://127.0.0.1:3111/agentmemory/livez >/dev/null 2>&1; then ok "agentmemory reachable on :3111"; else warn "agentmemory not reachable on :3111 (optional)"; fi
   if [[ -f "$HOME/.codex/config.toml" ]] && grep -q '^\[mcp_servers\.agentmemory\]' "$HOME/.codex/config.toml"; then ok "agentmemory MCP configured for Codex"; fi
@@ -298,9 +307,17 @@ case "$COMMAND" in
   ready|setup) ready_harness "$@" ;;
   doctor) doctor_harness "${1:-.}" ;;
   version) cat "$VERSION_FILE" ;;
+  orca) exec bash "$SETUP_DIR/orca-control.sh" "$@" ;;
   chatgpt-web) exec bash "$SETUP_DIR/chatgpt-web-control.sh" "$@" ;;
   memory) exec bash "$SETUP_DIR/agentmemory-service.sh" "$@" ;;
-  agy) exec bash "$SETUP_DIR/agy-runner-service.sh" "$@" ;;
+  orchestrate)
+    echo "ERROR   The built-in orchestrator was removed in v0.8.0. Use Orca through the repository-orchestrator skill." >&2
+    exit 2
+    ;;
+  agy)
+    echo "ERROR   The custom agy host runner was removed in v0.8.0. Launch Antigravity workers through Orca." >&2
+    exit 2
+    ;;
   help|--help|-h) usage ;;
   *) echo "Unknown command: $COMMAND" >&2; usage >&2; exit 1 ;;
 esac
