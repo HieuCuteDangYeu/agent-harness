@@ -30,7 +30,7 @@ test -f "$REPO/.agents/skills/skill-maintenance/SKILL.md"
 test -f "$REPO/.agents/skills/shared-memory/SKILL.md"
 
 grep -q "Orca's live" "$REPO/AGENTS.md"
-grep -q 'repository-policy wrapper around Orca' "$REPO/.agents/skills/repository-orchestrator/SKILL.md"
+grep -q 'repository-policy wrapper for Orca' "$REPO/.agents/skills/repository-orchestrator/SKILL.md"
 grep -q 'agent-harness orca guide' "$REPO/.agents/skills/repository-orchestrator/SKILL.md"
 grep -q 'dirty' "$REPO/.agents/skills/repository-orchestrator/SKILL.md"
 grep -q 'agentmemory' "$REPO/.agents/skills/shared-memory/SKILL.md"
