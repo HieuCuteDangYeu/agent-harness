@@ -5,12 +5,28 @@ REPO_URL="${AGENT_HARNESS_REPO_URL:-https://github.com/HieuCuteDangYeu/agent-har
 INSTALL_DIR="${AGENT_HARNESS_HOME:-$HOME/.local/share/agent-harness}"
 BIN_DIR="${AGENT_HARNESS_BIN_DIR:-$HOME/.local/bin}"
 TARGET="${AGENT_HARNESS_TARGET:-$PWD}"
+PREVIOUS_TEMPLATES=""
 
 command -v git >/dev/null 2>&1 || { echo "git is required" >&2; exit 127; }
+
+cleanup() {
+  if [[ -n "$PREVIOUS_TEMPLATES" && -d "$PREVIOUS_TEMPLATES" ]]; then
+    rm -rf "$PREVIOUS_TEMPLATES"
+  fi
+}
+trap cleanup EXIT
 
 mkdir -p "$(dirname "$INSTALL_DIR")" "$BIN_DIR"
 
 if [[ -d "$INSTALL_DIR/.git" ]]; then
+  # Preserve the exact template set from the previously installed harness before
+  # moving the harness checkout. agent-harness can then safely refresh project
+  # files only when they still match those untouched generated templates.
+  PREVIOUS_TEMPLATES="$(mktemp -d)"
+  if [[ -d "$INSTALL_DIR/templates" ]]; then
+    cp -a "$INSTALL_DIR/templates/." "$PREVIOUS_TEMPLATES/"
+  fi
+
   echo "Updating agent-harness at $INSTALL_DIR"
   git -C "$INSTALL_DIR" fetch --quiet origin main
   git -C "$INSTALL_DIR" checkout --quiet main
@@ -59,46 +75,14 @@ if [[ ":$PATH:" != *":$BIN_DIR:"* ]]; then
   echo "NOTE: $BIN_DIR is not currently on PATH; the bootstrap will run by absolute path now."
 fi
 
-"$INSTALL_DIR/bin/agent-harness" ready "$TARGET" "$@"
-
-# Refresh only exact untouched generated contracts. Repository-owned edits are preserved.
-AGENTS_FILE="$TARGET/AGENTS.md"
-OLD_AGENTS_BLOBS=(
-  "41adcfaf38b6ca2b8b9c2ec6005f4f75fb16832e" # v0.4.x-v0.6.0
-  "bc52e816056d09a119d7680039055a3b1f59e0a0" # v0.6.1
-  "690cc85979bf15c3aa99468a34f30618155b3fa8" # v0.6.2-v0.6.5
-  "74a3955795a1bc303bd03bcb173b56f99718ce19" # v0.7.0
-  "1870515c2e33d59cfd94c4bc60d75de3f40d1265" # v0.7.1
-)
-if [[ -f "$AGENTS_FILE" ]]; then
-  current_blob="$(git hash-object "$AGENTS_FILE" 2>/dev/null || true)"
-  for old_blob in "${OLD_AGENTS_BLOBS[@]}"; do
-    if [[ "$current_blob" == "$old_blob" ]]; then
-      cp "$INSTALL_DIR/templates/AGENTS.md" "$AGENTS_FILE"
-      echo "MIGRATE $AGENTS_FILE (Orca-backed orchestration routing)"
-      break
-    fi
-  done
+if [[ -n "$PREVIOUS_TEMPLATES" ]]; then
+  AGENT_HARNESS_PREVIOUS_TEMPLATES="$PREVIOUS_TEMPLATES" \
+    "$INSTALL_DIR/bin/agent-harness" ready "$TARGET" "$@"
+else
+  "$INSTALL_DIR/bin/agent-harness" ready "$TARGET" "$@"
 fi
 
-ORCHESTRATOR_SKILL="$TARGET/.agents/skills/repository-orchestrator/SKILL.md"
-OLD_ORCHESTRATOR_SKILL_BLOBS=(
-  "b8c258d37ec997437e161aa9ea148290b5715a10" # v0.6.2
-  "bad3fbc6f77b2ef7f1c1448c85b36a7ae13b378e" # v0.6.3
-  "fdd49c1743c6c7866cb43ea9b3f88771f95e30b0" # v0.6.4
-  "bdbd44332809943b596dad4a85a11b073bfc7fa1" # v0.6.5
-  "442d129575564554ed6a4f256cc31f114b35e7ae" # v0.7.0
-  "4fb4b2205e608965d62a09551b8310249ca55e49" # v0.7.1
-)
-if [[ -f "$ORCHESTRATOR_SKILL" ]]; then
-  current_blob="$(git hash-object "$ORCHESTRATOR_SKILL" 2>/dev/null || true)"
-  for old_blob in "${OLD_ORCHESTRATOR_SKILL_BLOBS[@]}"; do
-    if [[ "$current_blob" == "$old_blob" ]]; then
-      cp "$INSTALL_DIR/templates/.agents/skills/repository-orchestrator/SKILL.md" "$ORCHESTRATOR_SKILL"
-      echo "MIGRATE $ORCHESTRATOR_SKILL (Orca-backed orchestration policy)"
-      break
-    fi
-  done
-fi
-
-# init/ready removes only known generated legacy files. User-edited project files are preserved.
+# Managed Markdown migration is owned by bin/agent-harness. It refreshes every
+# untouched generated contract, preserves project-owned edits, uses the prior
+# installed template snapshot for normal upgrades, and falls back to the
+# historical hash catalog to repair installations skipped by older migrations.
