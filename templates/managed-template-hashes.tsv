@@ -1,0 +1,21 @@
+# Historical untouched template blobs that agent-harness may safely replace.
+# Format: repository-relative template path<TAB>git blob sha<TAB>note
+AGENTS.md	41adcfaf38b6ca2b8b9c2ec6005f4f75fb16832e	v0.4.x-v0.6.0
+AGENTS.md	bc52e816056d09a119d7680039055a3b1f59e0a0	v0.6.1
+AGENTS.md	690cc85979bf15c3aa99468a34f30618155b3fa8	v0.6.2-v0.6.5
+AGENTS.md	74a3955795a1bc303bd03bcb173b56f99718ce19	v0.7.0
+AGENTS.md	1870515c2e33d59cfd94c4bc60d75de3f40d1265	v0.7.1
+AGENTS.md	e96c62854ae40e3b4eb98a6386288d77e8fe07bd	v0.8.0 pre-GUI-first
+.agents/skills/repository-orchestrator/SKILL.md	b8c258d37ec997437e161aa9ea148290b5715a10	v0.6.2
+.agents/skills/repository-orchestrator/SKILL.md	bad3fbc6f77b2ef7f1c1448c85b36a7ae13b378e	v0.6.3
+.agents/skills/repository-orchestrator/SKILL.md	fdd49c1743c6c7866cb43ea9b3f88771f95e30b0	v0.6.4
+.agents/skills/repository-orchestrator/SKILL.md	bdbd44332809943b596dad4a85a11b073bfc7fa1	v0.6.5
+.agents/skills/repository-orchestrator/SKILL.md	442d129575564554ed6a4f256cc31f114b35e7ae	v0.7.0
+.agents/skills/repository-orchestrator/SKILL.md	4fb4b2205e608965d62a09551b8310249ca55e49	v0.7.1
+.agents/skills/repository-orchestrator/SKILL.md	9bab1860c2b941c5c5fe16a929947f1b138cf8a2	v0.8.0 pre-GUI-first
+.agents/skills/repo-skill-bootstrap/SKILL.md	59c0a974014ce438038431e5e47feb1b2713e523	legacy through v0.8.0
+.agents/skills/skill-discovery/SKILL.md	45056413d833eb98b50738aad866e11f5e5a6ee3	legacy through v0.8.0
+.agents/skills/skill-maintenance/SKILL.md	3750545ed76766c5ed5c80975c6ce77a24b633b8	legacy through v0.8.0
+.agents/skills/shared-memory/SKILL.md	c1799cfe67554fdba36d9b7e81a9bce719193c9b	TencentDB generation
+.agents/skills/shared-memory/SKILL.md	eb52602e75762d2584c8af8403e100bcc22e3a7d	early agentmemory generation
+.agents/skills/shared-memory/SKILL.md	ad817335a368c8ea4e49eafa33680e1d2bbf6204	v0.8.0 pre-GUI-first
