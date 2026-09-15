@@ -5,6 +5,8 @@ HARNESS_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 TEMPLATES="$HARNESS_ROOT/templates"
 VERSION_FILE="$HARNESS_ROOT/VERSION"
 SETUP_DIR="$HARNESS_ROOT/scripts/setup"
+MANAGED_HASHES_FILE="$TEMPLATES/managed-template-hashes.tsv"
+PREVIOUS_TEMPLATES_ROOT="${AGENT_HARNESS_PREVIOUS_TEMPLATES:-}"
 
 COMMAND="${1:-help}"
 if [[ $# -gt 0 ]]; then shift; fi
@@ -81,12 +83,70 @@ confirm() {
   fi
 }
 
-copy_if_missing() {
-  local src="$1" dst="$2"
-  if [[ -e "$dst" ]]; then echo "KEEP    $dst"; return; fi
-  mkdir -p "$(dirname "$dst")"
-  cp -R "$src" "$dst"
-  echo "CREATE  $dst"
+git_blob_hash() {
+  git hash-object "$1" 2>/dev/null || true
+}
+
+known_managed_hash() {
+  local rel="$1" hash="$2"
+  [[ -f "$MANAGED_HASHES_FILE" ]] || return 1
+  awk -F '\t' -v rel="$rel" -v hash="$hash" '
+    $1 == rel && $2 == hash { found = 1 }
+    END { exit(found ? 0 : 1) }
+  ' "$MANAGED_HASHES_FILE"
+}
+
+matches_previous_template() {
+  local rel="$1" hash="$2"
+  [[ -n "$PREVIOUS_TEMPLATES_ROOT" ]] || return 1
+  local previous="$PREVIOUS_TEMPLATES_ROOT/$rel"
+  [[ -f "$previous" ]] || return 1
+  [[ "$(git_blob_hash "$previous")" == "$hash" ]]
+}
+
+sync_managed_template() {
+  local rel="$1"
+  local src="$TEMPLATES/$rel"
+  local dst="$TARGET/$rel"
+
+  if [[ ! -f "$src" ]]; then
+    warn "Managed template missing from harness: $rel"
+    return 1
+  fi
+
+  if [[ ! -e "$dst" ]]; then
+    mkdir -p "$(dirname "$dst")"
+    cp "$src" "$dst"
+    echo "CREATE  $dst"
+    return 0
+  fi
+
+  if [[ ! -f "$dst" ]]; then
+    echo "KEEP    $dst (not a regular file)"
+    return 0
+  fi
+
+  local current_hash template_hash safe_migrate=0
+  current_hash="$(git_blob_hash "$dst")"
+  template_hash="$(git_blob_hash "$src")"
+
+  if [[ -n "$current_hash" && "$current_hash" == "$template_hash" ]]; then
+    echo "KEEP    $dst"
+    return 0
+  fi
+
+  if [[ -n "$current_hash" ]] && known_managed_hash "$rel" "$current_hash"; then
+    safe_migrate=1
+  elif [[ -n "$current_hash" ]] && matches_previous_template "$rel" "$current_hash"; then
+    safe_migrate=1
+  fi
+
+  if [[ "$safe_migrate" -eq 1 ]]; then
+    cp "$src" "$dst"
+    echo "MIGRATE $dst (untouched managed template)"
+  else
+    echo "KEEP    $dst (modified/project-owned)"
+  fi
 }
 
 replace_legacy_if_present() {
@@ -132,7 +192,7 @@ remove_generated_orchestrator_doc() {
 
 install_skill() {
   local skill="$1"
-  copy_if_missing "$TEMPLATES/.agents/skills/$skill" "$TARGET/.agents/skills/$skill"
+  sync_managed_template ".agents/skills/$skill/SKILL.md"
 }
 
 resolve_target() {
@@ -146,7 +206,7 @@ init_harness() {
   log "Installing agent harness into: $TARGET"
   log ""
 
-  copy_if_missing "$TEMPLATES/AGENTS.md" "$TARGET/AGENTS.md"
+  sync_managed_template "AGENTS.md"
   replace_legacy_if_present "$TEMPLATES/AGENTS.md" "$TARGET/AGENTS.md" 'check shared memory when `agent-memory` is available'
 
   install_skill repository-orchestrator
