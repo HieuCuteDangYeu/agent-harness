@@ -25,6 +25,12 @@ bash <(curl -fsSL https://raw.githubusercontent.com/HieuCuteDangYeu/agent-harnes
 
 The harness installs its repository contract and can install Orca's version-matched `orca-cli` and `orchestration` skills. If `adb` is available it also installs `orca-emulator-android`. Prefer Orca's **Skills / Settings → Agents** UI for normal skill visibility and updates.
 
+### Managed Markdown upgrades
+
+`AGENTS.md` and the harness-provided `.agents/skills/*/SKILL.md` files are managed as one template set. During an upgrade, the bootstrap snapshots the previously installed templates before updating itself. If a project file still exactly matches an untouched old generated template, it is refreshed to the current version. If the project changed that file, it is preserved as project-owned content.
+
+A historical hash catalog repairs untouched templates left stale by older harness versions whose migration logic only refreshed a subset of the managed Markdown files.
+
 See [First-time setup](docs/first-time-setup.md) for the full GUI-first setup.
 
 ## Daily use

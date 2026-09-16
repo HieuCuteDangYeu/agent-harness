@@ -5,7 +5,10 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 TMP="$(mktemp -d)"
 SECOND_LOG="$(mktemp)"
 MOCK_LOG="$(mktemp)"
-trap 'rm -rf "$TMP" "$SECOND_LOG" "$MOCK_LOG"' EXIT
+MIGRATION_LOG="$(mktemp)"
+CUSTOM_LOG="$(mktemp)"
+SNAPSHOT_LOG="$(mktemp)"
+trap 'rm -rf "$TMP" "$SECOND_LOG" "$MOCK_LOG" "$MIGRATION_LOG" "$CUSTOM_LOG" "$SNAPSHOT_LOG"' EXIT
 
 REPO="$TMP/repo"
 MOCK_BIN="$TMP/bin"
@@ -40,6 +43,61 @@ test ! -e "$REPO/scripts/agents/create-worktree.sh"
 test ! -e "$ROOT/templates/scripts/agents/create-worktree.sh"
 test ! -e "$REPO/.github/ISSUE_TEMPLATE/agent-task.md"
 test ! -e "$REPO/.github/pull_request_template.md"
+
+# Every untouched managed Markdown contract from v0.8.0 must migrate together.
+# Full history is available in CI specifically so this fixture is the real old template set,
+# not a hand-maintained copy that could drift away from what users actually installed.
+LEGACY_MANAGED_COMMIT="fefb3bd9a52efcae3094019e28f7880cddc924a9"
+MIGRATION_REPO="$TMP/migration-repo"
+mkdir -p "$MIGRATION_REPO"
+git -C "$MIGRATION_REPO" init -q
+while IFS= read -r rel; do
+  mkdir -p "$(dirname "$MIGRATION_REPO/$rel")"
+  git -C "$ROOT" show "$LEGACY_MANAGED_COMMIT:templates/$rel" > "$MIGRATION_REPO/$rel"
+done <<'MANAGED'
+AGENTS.md
+.agents/skills/repository-orchestrator/SKILL.md
+.agents/skills/repo-skill-bootstrap/SKILL.md
+.agents/skills/skill-discovery/SKILL.md
+.agents/skills/skill-maintenance/SKILL.md
+.agents/skills/shared-memory/SKILL.md
+MANAGED
+
+"$ROOT/bin/agent-harness" init "$MIGRATION_REPO" >"$MIGRATION_LOG"
+while IFS= read -r rel; do
+  cmp -s "$ROOT/templates/$rel" "$MIGRATION_REPO/$rel" || {
+    echo "Managed template did not migrate: $rel" >&2
+    cat "$MIGRATION_LOG" >&2
+    exit 1
+  }
+done <<'MANAGED'
+AGENTS.md
+.agents/skills/repository-orchestrator/SKILL.md
+.agents/skills/repo-skill-bootstrap/SKILL.md
+.agents/skills/skill-discovery/SKILL.md
+.agents/skills/skill-maintenance/SKILL.md
+.agents/skills/shared-memory/SKILL.md
+MANAGED
+[[ "$(grep -c '^MIGRATE ' "$MIGRATION_LOG")" -ge 6 ]]
+
+# A repository-owned edit at a managed path must survive future init/ready runs.
+printf '\n# project-owned customization\n' >> "$MIGRATION_REPO/.agents/skills/skill-discovery/SKILL.md"
+"$ROOT/bin/agent-harness" init "$MIGRATION_REPO" >"$CUSTOM_LOG"
+grep -q '# project-owned customization' "$MIGRATION_REPO/.agents/skills/skill-discovery/SKILL.md"
+grep -q 'skill-discovery/SKILL.md (modified/project-owned)' "$CUSTOM_LOG"
+
+# Future upgrades do not need another growing hard-coded hash list: bootstrap snapshots
+# the previously installed templates and passes them to init before replacing untouched files.
+SNAPSHOT_TEMPLATES="$TMP/previous-templates"
+SNAPSHOT_REPO="$TMP/snapshot-repo"
+mkdir -p "$SNAPSHOT_TEMPLATES" "$SNAPSHOT_REPO"
+git -C "$SNAPSHOT_REPO" init -q
+printf '%s\n' 'future generated AGENTS contract' > "$SNAPSHOT_TEMPLATES/AGENTS.md"
+printf '%s\n' 'future generated AGENTS contract' > "$SNAPSHOT_REPO/AGENTS.md"
+AGENT_HARNESS_PREVIOUS_TEMPLATES="$SNAPSHOT_TEMPLATES" \
+  "$ROOT/bin/agent-harness" init "$SNAPSHOT_REPO" >"$SNAPSHOT_LOG"
+cmp -s "$ROOT/templates/AGENTS.md" "$SNAPSHOT_REPO/AGENTS.md"
+grep -q '^MIGRATE .*AGENTS.md (untouched managed template)$' "$SNAPSHOT_LOG"
 
 # Orca is now the only task-level orchestration runtime shipped by the harness.
 test ! -e "$ROOT/scripts/orchestrate.mjs"
@@ -114,12 +172,19 @@ if "$ROOT/bin/agent-harness" agy status >/dev/null 2>&1; then
   exit 1
 fi
 
-# Bootstrap keeps the wrapper simple and migrates untouched v0.7.x generated contracts.
+# Bootstrap snapshots the previous harness templates; init owns migration for all managed Markdown.
 grep -q 'exec %q' "$ROOT/bootstrap.sh"
 ! grep -q 'scripts/orchestrate.mjs' "$ROOT/bootstrap.sh"
-grep -q '1870515c2e33d59cfd94c4bc60d75de3f40d1265' "$ROOT/bootstrap.sh"
-grep -q '4fb4b2205e608965d62a09551b8310249ca55e49' "$ROOT/bootstrap.sh"
-grep -q 'Orca-backed orchestration policy' "$ROOT/bootstrap.sh"
+grep -q 'PREVIOUS_TEMPLATES=' "$ROOT/bootstrap.sh"
+grep -q 'AGENT_HARNESS_PREVIOUS_TEMPLATES' "$ROOT/bootstrap.sh"
+! grep -q 'OLD_AGENTS_BLOBS' "$ROOT/bootstrap.sh"
+! grep -q 'OLD_ORCHESTRATOR_SKILL_BLOBS' "$ROOT/bootstrap.sh"
+grep -q 'managed-template-hashes.tsv' "$ROOT/bin/agent-harness"
+grep -q 'e96c62854ae40e3b4eb98a6386288d77e8fe07bd' "$ROOT/templates/managed-template-hashes.tsv"
+grep -q '59c0a974014ce438038431e5e47feb1b2713e523' "$ROOT/templates/managed-template-hashes.tsv"
+grep -q '45056413d833eb98b50738aad866e11f5e5a6ee3' "$ROOT/templates/managed-template-hashes.tsv"
+grep -q '3750545ed76766c5ed5c80975c6ce77a24b633b8' "$ROOT/templates/managed-template-hashes.tsv"
+grep -q 'ad817335a368c8ea4e49eafa33680e1d2bbf6204' "$ROOT/templates/managed-template-hashes.tsv"
 
 # Persistent memory stays outside the repository.
 grep -q 'export AGENTMEMORY_DATA_DIR="$DATA_ROOT"' "$ROOT/scripts/setup/agentmemory-service.sh"
