@@ -360,7 +360,7 @@ case "$COMMAND" in
     exec python3 "$HARNESS_ROOT/scripts/route_agent.py" "$@"
     ;;
   chatgpt-web)
-    echo "ERROR   Codex Web GPT setup was retired. Use ChatGPT Work or a native Orca-supported agent; existing local installations are not uninstalled." >&2
+    echo "ERROR   Legacy browser bridge setup was retired. Configure a supported agent in Orca; existing machine-level installations are untouched." >&2
     exit 2
     ;;
   memory) exec bash "$SETUP_DIR/agentmemory-service.sh" "$@" ;;
