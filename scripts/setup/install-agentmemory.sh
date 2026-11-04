@@ -74,13 +74,19 @@ fi
 # One capture implementation per host. Codex native plugin supplies its own
 # MCP + hooks; do not ALSO install global connect --with-hooks (duplicate events).
 if command -v codex >/dev/null 2>&1; then
-  echo "Installing agentmemory Codex plugin (MCP + native lifecycle hooks)..."
-  codex plugin marketplace add rohitg00/agentmemory >/dev/null 2>&1 || true
-  if codex plugin add agentmemory@agentmemory; then
-    ok "Codex plugin installed; review and trust hooks in /hooks"
+  if [[ "${AGENT_HARNESS_MEMORY_CAPTURE:-0}" == "1" ]]; then
+    echo "Installing agentmemory Codex plugin (MCP + native lifecycle hooks)..."
+    codex plugin marketplace add rohitg00/agentmemory >/dev/null 2>&1 || true
+    if codex plugin add agentmemory@agentmemory; then
+      ok "Codex plugin installed; review and trust hooks in /hooks"
+    else
+      warn "Codex plugin may already be installed or unavailable. Check /hooks and the MCP list."
+      warn "For unsupported plugin hosts, run 'agent-harness memory connect codex' for MCP-only wiring."
+    fi
   else
-    warn "Codex plugin may already be installed or unavailable. Check /hooks and the MCP list."
-    warn "For unsupported plugin hosts, run 'agent-harness memory connect codex' for MCP-only wiring."
+    echo "Connecting Codex MCP only (automatic capture was not enabled)..."
+    CI=1 npx -y "$PACKAGE" connect codex ||
+      warn "Codex MCP wiring failed. Existing native plugin hooks, if any, remain unchanged."
   fi
 fi
 
