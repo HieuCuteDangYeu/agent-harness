@@ -226,9 +226,8 @@ init_harness() {
   remove_if_unchanged_hash "$TARGET/scripts/agents/create-worktree.sh" "7a87ca8fc3505b4c5ccfd535bca6a81d216482f6"
   remove_generated_orchestrator_doc
 
-  if [[ -f "$TARGET/scripts/agents/agent-memory" ]] && grep -qF "TencentDB Agent Memory" "$TARGET/scripts/agents/agent-memory"; then
-    rm -f "$TARGET/scripts/agents/agent-memory"
-    echo "REMOVE  $TARGET/scripts/agents/agent-memory (legacy Tencent helper)"
+  if [[ -f "$TARGET/scripts/agents/agent-memory" ]]; then
+    warn "Review deprecated scripts/agents/agent-memory manually; project-owned content is preserved."
   fi
   rmdir "$TARGET/scripts/agents" 2>/dev/null || true
 
