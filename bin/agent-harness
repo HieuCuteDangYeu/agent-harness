@@ -118,7 +118,7 @@ sync_managed_template() {
     return 1
   fi
 
-  if [[ ! -e "$dst" ]]; then
+  if [[ ! -e "$dst" && ! -L "$dst" ]]; then
     mkdir -p "$(dirname "$dst")"
     cp "$src" "$dst"
     echo "CREATE  $dst"
@@ -153,14 +153,6 @@ sync_managed_template() {
   fi
 }
 
-replace_legacy_if_present() {
-  local src="$1" dst="$2" marker="$3"
-  if [[ -f "$dst" ]] && grep -qF "$marker" "$dst"; then
-    cp "$src" "$dst"
-    echo "MIGRATE $dst"
-  fi
-}
-
 remove_if_unchanged_hash() {
   local dst="$1" expected_hash="$2"
   if [[ -f "$dst" ]] && [[ "$(git hash-object "$dst" 2>/dev/null || true)" == "$expected_hash" ]]; then
@@ -188,15 +180,25 @@ remove_generated_orchestrator_doc() {
       return
     fi
   done
-  if [[ -f "$dst" ]] && grep -qF "TencentDB Agent Memory" "$dst"; then
-    rm -f "$dst"
-    echo "REMOVE  $dst (legacy generated orchestrator)"
-  fi
 }
 
-install_skill() {
-  local skill="$1"
-  sync_managed_template ".agents/skills/$skill/SKILL.md"
+retire_generated_skill() {
+  local rel=".agents/skills/$1/SKILL.md"
+  local dst="$TARGET/$rel"
+  [[ -f "$dst" && ! -L "$dst" ]] || return 0
+
+  local current_hash
+  current_hash="$(git_blob_hash "$dst")"
+  if [[ -n "$current_hash" ]] && {
+       known_managed_hash "$rel" "$current_hash" ||
+       matches_previous_template "$rel" "$current_hash"
+     }; then
+    rm -f "$dst"
+    echo "REMOVE  $dst (untouched obsolete harness shim)"
+    rmdir "$(dirname "$dst")" 2>/dev/null || true
+  else
+    echo "KEEP    $dst (project-owned/customized; review manually)"
+  fi
 }
 
 resolve_target() {
@@ -211,14 +213,13 @@ init_harness() {
   log ""
 
   sync_managed_template "AGENTS.md"
-  replace_legacy_if_present "$TEMPLATES/AGENTS.md" "$TARGET/AGENTS.md" 'check shared memory when `agent-memory` is available'
 
-  install_skill repository-orchestrator
-  install_skill repo-skill-bootstrap
-  install_skill skill-discovery
-  install_skill skill-maintenance
-  install_skill shared-memory
-  replace_legacy_if_present "$TEMPLATES/.agents/skills/shared-memory/SKILL.md" "$TARGET/.agents/skills/shared-memory/SKILL.md" "TencentDB Agent Memory"
+  # Orca and integration plugins already provide these generic capabilities.
+  # Retire only files proven to be untouched harness-generated shims.
+  local skill
+  for skill in repository-orchestrator repo-skill-bootstrap skill-discovery skill-maintenance shared-memory; do
+    retire_generated_skill "$skill"
+  done
 
   remove_if_unchanged_hash "$TARGET/.github/ISSUE_TEMPLATE/agent-task.md" "1a7563227f79eb2edd6ecb83ad4fd38fbadcaf35"
   remove_if_unchanged_hash "$TARGET/.github/pull_request_template.md" "180a428ed4da1e5fc621e8d86ddd6270f50e62e3"
@@ -323,11 +324,8 @@ doctor_harness() {
   }
 
   check AGENTS.md
-  check .agents/skills/repository-orchestrator/SKILL.md
-  check .agents/skills/repo-skill-bootstrap/SKILL.md
-  check .agents/skills/skill-discovery/SKILL.md
-  check .agents/skills/skill-maintenance/SKILL.md
-  check .agents/skills/shared-memory/SKILL.md
+  log "INFO    Generic Orca/Ponytail/agentmemory skills are managed by their upstream packages."
+
 
   log ""
   log "External readiness (informational):"
@@ -365,7 +363,7 @@ case "$COMMAND" in
     ;;
   memory) exec bash "$SETUP_DIR/agentmemory-service.sh" "$@" ;;
   orchestrate)
-    echo "ERROR   The built-in orchestrator was removed in v0.8.0. Use Orca through the repository-orchestrator skill." >&2
+    echo "ERROR   The built-in orchestrator was retired. Use Orca's installed orchestration skill." >&2
     exit 2
     ;;
   agy)
