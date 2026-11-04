@@ -1,71 +1,70 @@
 ---
 name: repository-orchestrator
-description: Compatibility repository-policy wrapper for Orca. Prefer Orca's official orchestration skill for actual Runs, workers, messages, and gates.
+description: Agent-neutral repository-policy wrapper for Orca; delegates execution to the live Orca orchestration skill.
 ---
 
 # Repository Orchestrator Compatibility Shim
 
-This file is a **repository-policy wrapper for Orca**, not an orchestration engine.
+This is a **repository-policy wrapper for Orca**, not a second orchestrator.
+The parent may be **any** Orca-supported agent. Do not default to Codex or
+Antigravity solely because older harness versions used them.
 
-Use it only to preserve the workflow contract in repositories bootstrapped by older harness versions. For actual multi-agent execution, delegate immediately to Orca's installed `orchestration` skill.
+## Start in the current session
 
-## GUI-first rule
+Read the task, current code/tests, AGENTS.md, and relevant local state.
+Classify complexity: trivial/easy -> execute here with low effort;
+moderate -> usually execute here with medium effort; hard -> consider a
+specialist or isolated Orca worker with high effort; critical/high-risk ->
+strongest supported reasoning plus explicit independent verification.
 
-The human uses the Orca desktop GUI for worktrees, sessions, Run/task visibility, diffs, skills, and ship/review controls. Do not make the user manage ordinary Orca lifecycle from the terminal.
+Spawn a worker only if capability, parallel ownership, independent analysis,
+or isolation materially improves the result. Never create sibling tasks
+merely to use more agents. Parent and worker must not edit the same owned task
+concurrently. For complex work, prefer the smallest graph:
+implementation -> verification -> independent review -> PASS/BLOCK.
 
-Agents may use Orca CLI operations when required by the official skill.
+## Routing checklist
 
-## Before orchestration
+Before launching an external worker, identify available agents and their
+actual supported models/efforts in Orca Settings -> Agents.
 
-1. read the explicit task
-2. inspect current code/tests and `AGENTS.md`
-3. check `git status --porcelain` for relevant dirty state
-4. use agentmemory only when prior decisions materially help
-5. load Orca's live orchestration guide with `agent-harness orca guide` (or the equivalent command documented by the installed Orca skill)
+- Match capabilities to the job; do not assume one provider wins every domain.
+- Choose a model/reasoning level appropriate to task difficulty, using options
+  actually supported on this host.
+- Refresh Orca Usage for each *active account/model-group pool*. Compare the
+  tightest 5h/daily/weekly limit and reset time, not only headline percentages.
+- Prefer stronger task fit first; use healthier quota headroom as an important
+  tiebreaker. Treat 80%+ usage as a caution, preserve a reserve for critical work.
+- Unknown/stale/unavailable quota is **unknown**, not free or unlimited.
+  Do not fabricate CLI/API usage data or infer it from a failed request.
+- Keep secrets, approval boundaries, and provider access policies intact.
 
-Do not hard-code Orca command syntax from memory.
+For reproducible recommendations, `agent-harness route` accepts profiles
+and a manually verified recent Orca Usage snapshot. It **does not** read
+live quotas or start workers. The final launch belongs to Orca's skill.
 
-## Dirty checkout
+## Orca control plane
 
-A newly-created Orca worktree does not inherit uncommitted edits from another checkout.
+Before mutating any Run, task, session, or gate, load **Orca's live**
+version-matched guide with `agent-harness orca guide` or the installed
+`orchestration` skill. Do not hard-code historical CLI flags.
 
-If the Run depends on dirty local changes, do not silently stash/commit them and do not pretend workers can see them. Ask the user to snapshot/commit the relevant state or continue from an Orca-managed branch/worktree that already contains it.
+Orca owns worktrees, supervised agent sessions, messages, recovery, model/
+effort launch controls, dependencies, and PASS/BLOCK gates.
 
-## Execution policy
+## Dirty checkout and verification
 
-Orca owns:
+Inspect `git status --porcelain`. Worktrees do not inherit uncommitted
+changes from another checkout; do not silently stash, commit, or lose them.
 
-- Runs/tasks/dependencies
-- worktrees
-- Codex/Antigravity worker sessions
-- messages/recovery
-- model/effort controls
-- status/progress
-- decision gates
-
-Use the smallest useful task graph. Do not duplicate implementation ownership across workers or between the parent and a worker.
-
-For substantial work prefer:
-
-```text
-implementation -> verification -> independent review -> PASS/BLOCK gate
-```
-
-Codex is the default implementation/debugging worker. Use Antigravity when UI/device/visual work or independent review materially benefits.
-
-Do not push, open a remote PR, or merge unless explicitly requested.
-
-## Skills
-
-Use Orca's Skills page / discovered skills / Find Skills surface when available before writing another generic local skill.
-
-Repository-local skills should contain only durable, non-obvious project-specific invariants.
+Run relevant tests, then required wider checks. Record evidence, not worker
+self-reports. Keep an independent reviewer when task risk justifies it.
+Do not push, open remote PRs, or merge without explicit authorization.
 
 ## Never
 
-- revive `agent-harness orchestrate`
-- revive the custom `agy` host runner
-- use Codex Web GPT as a worker
-- create sibling workers outside Orca for an active Run
-- trust a worker self-report instead of required verification evidence
-- patch Orca/harness internals merely to bypass a product-task blocker
+- revive the custom `agent-harness orchestrate` DAG or `agy` host runner
+- reinstall or require Codex Web GPT as a parent transport
+- assume all Orca providers expose the same models, effort, or quota API
+- run sibling workers on the same implementation without a real boundary
+- bypass permission or quota limits to complete a task
