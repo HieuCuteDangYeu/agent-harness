@@ -49,12 +49,16 @@ case "$command" in
     fi
     ;;
   enable)
-    bash "$ORCA_CONTROL" path >/dev/null
-    # systemd expands specifiers (%) and quotes; reject unsafe unit path text.
-    if printf %s "$ORCA_CONTROL" | LC_ALL=C grep -qE '["%[:cntrl:]]'; then
-      echo "Unsupported character in harness path for systemd unit" >&2
-      exit 2
-    fi
+    ORCA_BINARY="$(bash "$ORCA_CONTROL" path)"
+    # A user systemd instance may not inherit the interactive PATH (e.g. nvm).
+    # Record the CLI and PATH that were verified during opt-in setup.
+    # systemd expands specifiers (%) and quotes: reject unsafe unit values.
+    for value in "$ORCA_CONTROL" "$ORCA_BINARY" "$PATH"; do
+      if printf %s "$value" | LC_ALL=C grep -qE '["%\\[:cntrl:]]'; then
+        echo "Unsupported character in Orca CLI / PATH for systemd unit" >&2
+        exit 2
+      fi
+    done
     mkdir -p "$UNIT_DIR"
     cat > "$SERVICE" <<UNIT
 # Managed by agent-harness
@@ -63,6 +67,8 @@ Description=Refresh installed Orca skills using Orca CLI
 
 [Service]
 Type=oneshot
+Environment="ORCA_CLI_COMMAND=$ORCA_BINARY"
+Environment="PATH=$PATH"
 ExecStart=/usr/bin/env bash "$ORCA_CONTROL" update
 UNIT
     cat > "$TIMER" <<UNIT
