@@ -26,7 +26,10 @@ def read_json(path):
 def parse_timestamp(value):
     if not isinstance(value, str):
         raise ValueError("timestamp must be an ISO-8601 string")
-    return datetime.fromisoformat(value.replace("Z", "+00:00")).astimezone(timezone.utc)
+    parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+    if parsed.tzinfo is None or parsed.utcoffset() is None:
+        raise ValueError("timestamp must include UTC offset")
+    return parsed.astimezone(timezone.utc)
 
 
 def choose_effort(supported, difficulty):
@@ -53,7 +56,10 @@ def quota_headroom(usage, quota_key, now, max_age_minutes):
     age = now - observed_at
     if age < -timedelta(minutes=2) or age > timedelta(minutes=max_age_minutes):
         return None, "usage snapshot is stale or future-dated"
-    entry = usage.get("pools", {}).get(quota_key)
+    pools = usage.get("pools")
+    if not isinstance(pools, dict):
+        return None, "quota pools unavailable"
+    entry = pools.get(quota_key)
     if not isinstance(entry, dict):
         return None, "quota pool not reported"
     if entry.get("status") != "available":
@@ -104,6 +110,8 @@ def plan(args, now=None):
 
     config = read_json(args.config)
     usage = read_json(args.usage)
+    if config.get("_example_only") or usage.get("_example_only"):
+        raise ValueError("Example routing profiles/usage are not verified data; edit copies first")
     agents = config.get("agents")
     if not isinstance(agents, list):
         raise ValueError("agent configuration must contain an agents array")
