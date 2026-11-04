@@ -290,7 +290,12 @@ ready_harness() {
   if [[ "$SKIP_AGENTMEMORY" -eq 0 ]]; then
     if [[ "$(node_major || echo 0)" -ge 20 ]] && command -v npx >/dev/null 2>&1; then
       if confirm "Set up keyless local agentmemory (no API key)?" 1; then
-        AGENT_HARNESS_NONINTERACTIVE="$NONINTERACTIVE" run_setup_script install-agentmemory.sh || warn "agentmemory setup needs attention"
+        local memory_capture=0
+        if confirm "Enable supported agentmemory lifecycle hooks (records session/tool content locally)?" 0; then
+          memory_capture=1
+        fi
+        AGENT_HARNESS_MEMORY_CAPTURE="$memory_capture" AGENT_HARNESS_NONINTERACTIVE="$NONINTERACTIVE" run_setup_script install-agentmemory.sh ||
+          warn "agentmemory setup needs attention"
       else warn "agentmemory setup skipped"; fi
     else
       warn "Skipping agentmemory because Node.js 20+ with npx is unavailable"
