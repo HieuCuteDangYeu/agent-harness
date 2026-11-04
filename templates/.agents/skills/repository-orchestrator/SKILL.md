@@ -54,7 +54,7 @@ effort launch controls, dependencies, and PASS/BLOCK gates.
 
 ## Dirty checkout and verification
 
-Inspect `git status --porcelain`. Worktrees do not inherit uncommitted
+Inspect `git status --porcelain` for dirty state. Worktrees do not inherit uncommitted
 changes from another checkout; do not silently stash, commit, or lose them.
 
 Run relevant tests, then required wider checks. Record evidence, not worker
