@@ -22,3 +22,9 @@ AGENTS.md	e96c62854ae40e3b4eb98a6386288d77e8fe07bd	v0.8.0 pre-GUI-first
 AGENTS.md	603bc1b06826eb6cc0f9e780b5aa62ba7310512c	v0.8.1 agent-specific workflow
 .agents/skills/repository-orchestrator/SKILL.md	2a77b51c594f834047c529e92edf3b9e433c221d	v0.8.1 agent-specific shim
 .agents/skills/shared-memory/SKILL.md	655f3098f3634392c25c6c5cb35ceb84503b4880	v0.8.1 web-bridge reference
+AGENTS.md	bdf65ebba04dbcea09510939ca92140baf007820	v0.9.0 pre-lean contract
+.agents/skills/repository-orchestrator/SKILL.md	8cbcbeda456a78a79b09944a35af46a2bf6502de	v0.9.0 duplicate Orca wrapper
+.agents/skills/repo-skill-bootstrap/SKILL.md	95ee5e1739fcf051c00e560a80645de6fcfb7215	v0.8.1/v0.9.0 redundant shim
+.agents/skills/skill-discovery/SKILL.md	5cabab82e0d0b4357c067f26f8e205fce6b2da84	v0.8.1/v0.9.0 redundant shim
+.agents/skills/skill-maintenance/SKILL.md	a5d6612f6ff6b9af3c3c48d8d1e965156a82be24	v0.8.1/v0.9.0 redundant shim
+.agents/skills/shared-memory/SKILL.md	804f8ba73feb323d3ceed7d5ef69104047ca7853	v0.9.0 duplicate memory wrapper
