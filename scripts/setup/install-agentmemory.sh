@@ -71,25 +71,28 @@ else
   bash "$SERVICE_SCRIPT" start
 fi
 
+# One capture implementation per host. Codex native plugin supplies its own
+# MCP + hooks; do not ALSO install global connect --with-hooks (duplicate events).
 if command -v codex >/dev/null 2>&1; then
-  echo "Wiring agentmemory into Codex..."
+  echo "Installing agentmemory Codex plugin (MCP + native lifecycle hooks)..."
   codex plugin marketplace add rohitg00/agentmemory >/dev/null 2>&1 || true
-  if codex plugin add agentmemory@agentmemory >/dev/null 2>&1; then
-    ok "agentmemory Codex plugin installed"
+  if codex plugin add agentmemory@agentmemory; then
+    ok "Codex plugin installed; review and trust hooks in /hooks"
   else
-    warn "Codex plugin install returned non-zero; continuing with MCP wiring."
-  fi
-  if CI=1 npx -y "$PACKAGE" connect codex --with-hooks; then
-    ok "agentmemory MCP/hooks wired into Codex"
-  else
-    warn "Codex hook wiring had warnings; retrying MCP-only wiring."
-    CI=1 npx -y "$PACKAGE" connect codex || true
+    warn "Codex plugin may already be installed or unavailable. Check /hooks and the MCP list."
+    warn "For unsupported plugin hosts, run 'agent-harness memory connect codex' for MCP-only wiring."
   fi
 fi
 
-if command -v agy >/dev/null 2>&1 || command -v antigravity >/dev/null 2>&1; then
-  echo "Wiring agentmemory into Antigravity..."
-  CI=1 npx -y "$PACKAGE" connect antigravity || warn "Antigravity wiring needs attention."
+if command -v agy >/dev/null 2>&1; then
+  echo "Connecting Antigravity CLI to agentmemory..."
+  if [[ "${AGENT_HARNESS_MEMORY_CAPTURE:-0}" == "1" ]]; then
+    CI=1 npx -y "$PACKAGE" connect antigravity-cli --with-hooks ||
+      warn "Could not configure Antigravity auto-capture; inspect current hooks before retrying."
+  else
+    CI=1 npx -y "$PACKAGE" connect antigravity-cli ||
+      warn "Could not configure Antigravity MCP."
+  fi
 fi
 
 cat <<NEXT
@@ -101,7 +104,8 @@ Defaults selected by agent-harness when those settings were not already configur
   - local semantic embeddings: Xenova/all-MiniLM-L6-v2
   - MCP tool surface: core (8 tools)
   - automatic LLM compression: off
-  - automatic context injection: off unless you enable it yourself
+  - LLM compression: opt-in; recorded events and memory retrieval depend on each agent's native hooks
+  - never enable both Codex plugin hooks and global connect --with-hooks
   - persistent data directory: $DATA_ROOT
 
 Local endpoints:
@@ -116,6 +120,8 @@ Lifecycle:
   agent-harness memory viewer
 
 The first semantic-memory request downloads the local MiniLM model once.
-Restart Codex / Antigravity after setup so they reload MCP configuration.
-Codex users should launch the Codex TUI once and review/trust the new hooks.
+Restart configured agents after setup and verify capture in the agentmemory viewer.
+For additional CLI agents use: agent-harness memory connect <supported-agent> [--with-hooks]
+Consult upstream adapter docs; do not install duplicate hook routes.
+For long-term learning, promote only validated lessons or project-specific invariants.
 NEXT
