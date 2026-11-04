@@ -66,7 +66,7 @@ silently stash, commit, or discard user edits.
 The unofficial Codex Web GPT bridge is no longer installed, launched,
 repaired, or tested by this harness. An existing machine-level install
 is left untouched; remove it manually using the bridge's own guidance
-only if you choose. ChatGPT Work handles eligible web/desktop tasks
-separately and is not automatically an Orca CLI model/provider.
+only if you choose. Repository orchestration requires only supported
+agents that are explicitly configured in Orca.
 
 Continue with [Usage](usage.md).
