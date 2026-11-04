@@ -33,7 +33,7 @@ agent-harness orca <path|status|open|setup|update|auto-update|guide|doctor>
 path    Print the resolved Orca CLI executable.
 status  Query the running Orca runtime as JSON.
 open    Open/start Orca and return JSON status.
-setup   Install Orca's core agent skills; also install Android emulator skill when adb exists.
+setup   Install Orca CLI, orchestration, and computer-use skills; Android skill when adb exists.
 update  Update already-installed Orca skills using Orca's own updater.
 auto-update <status|enable|disable>  Opt-in daily refresh on Linux systemd user session.
 guide   Print the live version-matched Orca orchestration guide.
