@@ -44,7 +44,11 @@ agent-harness orca auto-update disable
 
 This does not install additional skills or bypass third-party review.
 The timer is disabled by default and needs a functioning user systemd
-session. On other operating systems use Orca's updater directly.
+session. Setup records the verified Orca CLI path and the current PATH
+(including an nvm-managed Node installation); rerun `enable` if those
+paths change. Inspect failures with
+`journalctl --user -u agent-harness-orca-skills.service`.
+On other operating systems use Orca's updater directly.
 Pinned/customized skills may be skipped by Orca; inspect its update results.
 
 Ponytail is installed as an **upstream host plugin**. Its own rules,
