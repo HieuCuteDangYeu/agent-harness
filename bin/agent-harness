@@ -15,9 +15,8 @@ TARGET="."
 YES=0
 CORE_ONLY=0
 SKIP_ORCA=0
-SKIP_PONYTAIL=0
-SKIP_CHATGPT_WEB=0
-SKIP_AGENTMEMORY=0
+SKIP_PONYTAIL=1
+SKIP_AGENTMEMORY=1
 NONINTERACTIVE="${AGENT_HARNESS_NONINTERACTIVE:-0}"
 
 log() { printf '%s\n' "$*"; }
@@ -31,16 +30,19 @@ agent-harness ready [path] [options]
 agent-harness doctor [path]
 agent-harness version
 agent-harness orca <path|status|open|setup|update|guide|doctor>
-agent-harness chatgpt-web <status|open|repair>
+agent-harness route --difficulty <trivial|easy|moderate|hard|critical> --domain <name> [--config path --usage path]
+agent-harness chatgpt-web (retired; compatibility error)
 agent-harness memory <start|status|stop|restart|logs|viewer|data-dir|doctor|upgrade> [...]
 
 ready options:
   --yes
   --core-only
   --skip-orca
-  --skip-ponytail
-  --skip-chatgpt-web
-  --skip-agentmemory
+  --with-ponytail
+  --with-agentmemory
+  --skip-ponytail (legacy)
+  --skip-chatgpt-web (legacy no-op)
+  --skip-agentmemory (legacy)
   --non-interactive
 USAGE
 }
@@ -52,8 +54,10 @@ parse_target_and_flags() {
       --yes|-y) YES=1 ;;
       --core-only) CORE_ONLY=1 ;;
       --skip-orca) SKIP_ORCA=1 ;;
+      --with-ponytail) SKIP_PONYTAIL=0 ;;
+      --with-agentmemory) SKIP_AGENTMEMORY=0 ;;
       --skip-ponytail) SKIP_PONYTAIL=1 ;;
-      --skip-chatgpt-web) SKIP_CHATGPT_WEB=1 ;;
+      --skip-chatgpt-web) warn 'Codex Web GPT integration was retired; this flag is now a no-op' ;;
       --skip-agentmemory|--skip-memory) SKIP_AGENTMEMORY=1 ;;
       --non-interactive) NONINTERACTIVE=1 ;;
       -h|--help) usage; exit 0 ;;
@@ -247,15 +251,15 @@ ready_harness() {
   init_harness
 
   if [[ "$CORE_ONLY" -eq 1 ]]; then
-    SKIP_ORCA=1; SKIP_PONYTAIL=1; SKIP_CHATGPT_WEB=1; SKIP_AGENTMEMORY=1
+    SKIP_ORCA=1; SKIP_PONYTAIL=1; SKIP_AGENTMEMORY=1
   fi
 
   log ""
   log "== Machine capability detection =="
   command -v git >/dev/null 2>&1 && ok git || warn "git not found"
   command -v curl >/dev/null 2>&1 && ok curl || warn "curl not found"
-  command -v codex >/dev/null 2>&1 && ok "Codex detected" || warn "Codex not detected"
-  command -v agy >/dev/null 2>&1 && ok "Antigravity CLI detected" || warn "Antigravity CLI not detected (optional)"
+  log 'Agent discovery and supported models are managed by Orca Settings -> Agents.'
+  log 'Any supported CLI agent can be the parent or worker; no Codex/Antigravity requirement.'
 
   local orca_path=""
   orca_path="$(run_setup_script orca-control.sh path 2>/dev/null || true)"
@@ -276,24 +280,12 @@ ready_harness() {
 
   log ""
   if [[ "$SKIP_PONYTAIL" -eq 0 ]]; then
-    if confirm "Install/update Ponytail for detected coding agents?" 1; then
+    if confirm "Install/update Ponytail for supported coding agents?" 0; then
       AGENT_HARNESS_NONINTERACTIVE="$NONINTERACTIVE" run_setup_script install-ponytail.sh || warn "Ponytail setup had warnings"
     else warn "Ponytail setup skipped"; fi
   fi
 
-  log ""
-  if [[ "$SKIP_CHATGPT_WEB" -eq 0 ]]; then
-    log "Codex Web GPT is unofficial browser automation using your signed-in ChatGPT account."
-    if confirm "Set up/open the Codex Web GPT launcher?" 0; then
-      if run_setup_script chatgpt-web-control.sh status >/dev/null 2>&1; then
-        run_setup_script chatgpt-web-control.sh open || warn "Codex Web GPT could not be opened"
-      else
-        AGENT_HARNESS_NONINTERACTIVE="$NONINTERACTIVE" run_setup_script install-chatgpt-web.sh || warn "ChatGPT Web bridge setup had warnings"
-      fi
-    else warn "ChatGPT Web bridge setup skipped"; fi
-  fi
 
-  log ""
   if [[ "$SKIP_AGENTMEMORY" -eq 0 ]]; then
     if [[ "$(node_major || echo 0)" -ge 20 ]] && command -v npx >/dev/null 2>&1; then
       if confirm "Set up keyless local agentmemory (no API key)?" 1; then
@@ -309,22 +301,16 @@ ready_harness() {
 
   cat <<'NEXT'
 
-== One-time actions ==
+== Next steps ==
 
-Orca:
-  Open Orca, add this repository, and review Settings -> Agents permissions before autonomous runs.
-  Orca owns Runs, worktrees, worker sessions, messages, and decision gates.
+Open Orca, select the repository, and choose any installed agent in Settings -> Agents.
+For trivial/easy work, act in the current session. For complex tasks, use the
+version-matched Orca orchestration skill and its Runs/worktrees/decision gates.
 
-Codex hooks:
-  Launch Codex, review `/hooks`, trust only accepted Ponytail/agentmemory hooks, then start a new thread.
-
-ChatGPT Web Full Harness:
-  Keep Codex Web GPT running, sign in, run its smoke test, install Web models, enable Full Harness,
-  finish the connector setup, then launch the parent Codex session from Orca.
-
-Orchestration:
-  Ask for the repository orchestrator normally. The local policy loads Orca's live version-matched
-  orchestration guide; Orca can then coordinate Codex and Antigravity sessions in separate worktrees.
+Before dispatching a worker, inspect Orca Usage for the active account and model pool.
+If you want an advisory machine-readable ranking, use 'agent-harness route --help'
+with your own capability profiles and a fresh usage snapshot. The harness never
+assumes access to a live quota API or automatically spends provider quotas.
 NEXT
 }
 
@@ -345,8 +331,7 @@ doctor_harness() {
 
   log ""
   log "External readiness (informational):"
-  command -v codex >/dev/null 2>&1 && ok codex || warn "codex not found"
-  command -v agy >/dev/null 2>&1 && ok agy || warn "agy not found (optional)"
+  log 'Use Orca Settings -> Agents to inspect available CLI agents and models.'
 
   if run_setup_script orca-control.sh path >/dev/null 2>&1; then
     run_setup_script orca-control.sh guide >/dev/null 2>&1 && ok "Orca orchestration guide available" || warn "Orca orchestration skill missing; run 'agent-harness orca setup'"
@@ -355,7 +340,6 @@ doctor_harness() {
     warn "Orca CLI not found"
   fi
 
-  run_setup_script chatgpt-web-control.sh status || true
   if [[ "$(node_major || echo 0)" -ge 20 ]] && command -v npx >/dev/null 2>&1; then ok "Node $(node -v) + npx"; else warn "Node.js 20+ with npx not ready"; fi
   if command -v curl >/dev/null 2>&1 && curl -fsS --max-time 2 http://127.0.0.1:3111/agentmemory/livez >/dev/null 2>&1; then ok "agentmemory reachable on :3111"; else warn "agentmemory not reachable on :3111 (optional)"; fi
   if [[ -f "$HOME/.codex/config.toml" ]] && grep -q '^\[mcp_servers\.agentmemory\]' "$HOME/.codex/config.toml"; then ok "agentmemory MCP configured for Codex"; fi
@@ -368,7 +352,17 @@ case "$COMMAND" in
   doctor) doctor_harness "${1:-.}" ;;
   version) cat "$VERSION_FILE" ;;
   orca) exec bash "$SETUP_DIR/orca-control.sh" "$@" ;;
-  chatgpt-web) exec bash "$SETUP_DIR/chatgpt-web-control.sh" "$@" ;;
+  route)
+    if ! command -v python3 >/dev/null 2>&1; then
+      echo "ERROR   python3 is required for the optional advisory router." >&2
+      exit 127
+    fi
+    exec python3 "$HARNESS_ROOT/scripts/route_agent.py" "$@"
+    ;;
+  chatgpt-web)
+    echo "ERROR   Codex Web GPT setup was retired. Use ChatGPT Work or a native Orca-supported agent; existing local installations are not uninstalled." >&2
+    exit 2
+    ;;
   memory) exec bash "$SETUP_DIR/agentmemory-service.sh" "$@" ;;
   orchestrate)
     echo "ERROR   The built-in orchestrator was removed in v0.8.0. Use Orca through the repository-orchestrator skill." >&2
