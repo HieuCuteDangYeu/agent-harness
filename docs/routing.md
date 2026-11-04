@@ -50,6 +50,10 @@ cp routing/agents.example.json ~/.config/agent-harness/agents.json
 cp routing/usage.example.json ~/.config/agent-harness/usage.json
 ```
 
+Remove the `_example_only` markers only after replacing the sample data with
+verified local profiles/usage; enable only agents that actually exist in Orca.
+The router refuses the example markers as a safety measure.
+
 Edit `agents.json` so **each enabled agent ID is an Orca-available CLI**,
 with its own provider, `quota_key` (unique per account/model pool),
 `strengths` per task domain rated 0–5 based on **your own evaluation**,
