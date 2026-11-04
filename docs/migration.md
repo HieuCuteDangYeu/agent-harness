@@ -1,31 +1,36 @@
-# Managed template migration
+# Migrating from generic skill wrappers
 
-`agent-harness` manages a small set of repository Markdown contracts:
+Earlier releases generated `AGENTS.md` **and five generic skill shims**
+(`repository-orchestrator`, `repo-skill-bootstrap`, `skill-discovery`,
+`skill-maintenance`, `shared-memory`). Those shims duplicated Orca
+skills, third-party plugins, and the project policy itself.
 
-- `AGENTS.md`
-- `.agents/skills/repository-orchestrator/SKILL.md`
-- `.agents/skills/repo-skill-bootstrap/SKILL.md`
-- `.agents/skills/skill-discovery/SKILL.md`
-- `.agents/skills/skill-maintenance/SKILL.md`
-- `.agents/skills/shared-memory/SKILL.md`
+The current harness generates **only `AGENTS.md`**. Existing managed
+shims are retired *only* when content identity proves the file was
+untouched harness output. This leaves project-owned skills alone.
 
-Upgrades must treat them as one managed set.
+## Exact-content safety rule
 
-## Safety rule
+1. If the project AGENTS.md is identical to the current template, keep it.
+2. If it equals the previous installed template snapshot, migrate it.
+3. If it equals an exact historical generated Git blob SHA recorded in
+   `templates/managed-template-hashes.tsv`, migrate it.
+4. Otherwise keep the project-owned/customized file. Symlinks are never
+   followed or replaced.
+5. For each obsolete generic shim, delete only when its exact Git blob
+   matches a known historical generated hash or the previous harness
+   snapshot. Otherwise keep the file and print a review note.
 
-A managed file may be replaced automatically only when the harness can prove it is still untouched generated content.
+**Never** delete or replace a file just because it contains a heading,
+frontmatter name, or legacy marker string. Old versions did this in a
+few compatibility paths; those heuristic overwrites have been removed.
 
-The proof path is:
+The update bootstrap snapshots the previously installed template
+directory before checking out the newer harness. This supports safe
+future migration without requiring an endless hash registry. The
+historical catalog remains for older installations that skipped updates.
 
-1. exact match with the current template -> keep it;
-2. exact match with a template from the previously installed harness snapshot -> migrate it;
-3. exact match with a known historical generated blob in `templates/managed-template-hashes.tsv` -> migrate it;
-4. otherwise preserve it as project-owned/modified content.
-
-This keeps project customizations safe while still repairing stale generated files left behind by older partial migration logic.
-
-## Why both snapshot and historical hashes exist
-
-The previous-template snapshot handles normal future upgrades without requiring another version-specific hash list. The historical hash catalog exists only to recover projects that were already skipped by older migration code before this mechanism was introduced.
-
-Do not add heuristic overwrites based only on headings, frontmatter names, or marker text for the managed template set. Exact content identity is the safety boundary.
+Orca now owns official skill installation and updates. It does not
+need repository copies of its orchestration or skill-discovery prompts.
+Ponytail and agentmemory should be installed from their official sources,
+not copied into a project's managed AGENTS.md.
