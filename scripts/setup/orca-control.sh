@@ -28,26 +28,30 @@ resolve_orca() {
 
 usage() {
   cat <<'USAGE'
-agent-harness orca <path|status|open|setup|update|guide|doctor>
+agent-harness orca <path|status|open|setup|update|auto-update|guide|doctor>
 
 path    Print the resolved Orca CLI executable.
 status  Query the running Orca runtime as JSON.
 open    Open/start Orca and return JSON status.
 setup   Install Orca's core agent skills; also install Android emulator skill when adb exists.
-update  Update already-installed Orca skills.
+update  Update already-installed Orca skills using Orca's own updater.
+auto-update <status|enable|disable>  Opt-in daily refresh on Linux systemd user session.
 guide   Print the live version-matched Orca orchestration guide.
 doctor  Verify CLI discovery, orchestration guide availability, and runtime reachability.
 USAGE
 }
+
+COMMAND="${1:-status}"
+if [[ $# -gt 0 ]]; then shift; fi
+if [[ "$COMMAND" == "auto-update" ]]; then
+  exec bash "$(dirname "${BASH_SOURCE[0]}")/orca-skill-updates.sh" "$@"
+fi
 
 ORCA="$(resolve_orca || true)"
 if [[ -z "$ORCA" ]]; then
   echo "ERROR   Orca CLI not found. Install Orca from https://www.onorca.dev/docs/install and register its CLI." >&2
   exit 127
 fi
-
-COMMAND="${1:-status}"
-shift || true
 
 case "$COMMAND" in
   path)
@@ -60,7 +64,7 @@ case "$COMMAND" in
     exec "$ORCA" open --json "$@"
     ;;
   setup)
-    "$ORCA" skills install --skill orca-cli --skill orchestration
+    "$ORCA" skills install --skill orca-cli --skill orchestration --skill computer-use
     if command -v adb >/dev/null 2>&1; then
       "$ORCA" skills install --skill orca-emulator-android || warn "Could not install Orca Android emulator skill"
     fi
