@@ -56,7 +56,7 @@ implementation task and avoid creating a second orchestration DAG.
 
 ## Retired bridge
 
-Codex Web GPT and its unofficial browser-based parent transport are no
-longer configured or launched by the harness. Existing installed files
-outside this repository are left untouched. ChatGPT Work is a separate
-product surface and not an assumed Orca agent CLI.
+The retired browser bridge is no longer configured or launched by this
+repository. Any separately installed software is left untouched. Agent
+availability comes from the current Orca configuration, not from claims
+about unrelated chat products.
