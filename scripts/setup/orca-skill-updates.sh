@@ -57,12 +57,46 @@ case "$command" in
     # Verify that the installed Orca CLI understands its own skill update
     # command before setting up unattended invocations.
     bash "$SERVICE_SCRIPT" path >/dev/null
-    case "$SERVICE_SCRIPT" in
-      *[\"$'\n']*)
-        echo "Unsupported character in harness path for systemd unit" >&2
-        exit 2
-        ;;
-    esac
+    if [[ "$SERVICE_SCRIPT" == *'"'* || "$SERVICE_SCRIPT" == *
+    mkdir -p "$UNIT_DIR"
+    cat > "$SERVICE" <<UNIT
+# Managed by agent-harness
+[Unit]
+Description=Refresh installed Orca skills with Orca CLI
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/env bash "$SERVICE_SCRIPT" update
+UNIT
+    cat > "$TIMER" <<UNIT
+# Managed by agent-harness
+[Unit]
+Description=Daily Orca skill refresh
+
+[Timer]
+OnCalendar=daily
+RandomizedDelaySec=1h
+Persistent=true
+Unit=$NAME.service
+
+[Install]
+WantedBy=timers.target
+UNIT
+    systemctl --user daemon-reload
+    systemctl --user enable --now "$NAME.timer"
+    echo "Enabled daily Orca skill updates. Inspect systemctl --user list-timers."
+    ;;
+  disable)
+    systemctl --user disable --now "$NAME.timer" 2>/dev/null || true
+    rm -f "$SERVICE" "$TIMER"
+    systemctl --user daemon-reload
+    echo "Disabled harness-managed Orca skill update timer."
+    ;;
+esac
+\n'* || "$SERVICE_SCRIPT" == *'%'* ]]; then
+      echo "Unsupported character in harness path for systemd unit" >&2
+      exit 2
+    fi
     mkdir -p "$UNIT_DIR"
     cat > "$SERVICE" <<UNIT
 # Managed by agent-harness
