@@ -130,7 +130,14 @@ test ! -e "$REPO/scripts/agents/agent-memory"
 
 AGENT_HARNESS_NONINTERACTIVE=1 "$ROOT/bin/agent-harness" ready "$REPO" --core-only --non-interactive >/dev/null
 "$ROOT/bin/agent-harness" --help >/dev/null
-"$ROOT/bin/agent-harness" chatgpt-web --help >/dev/null
+if "$ROOT/bin/agent-harness" chatgpt-web status >/dev/null 2>&1; then
+  echo "retired Codex Web GPT command must not execute" >&2
+  exit 1
+fi
+test ! -e "$ROOT/scripts/setup/chatgpt-web-control.sh"
+test ! -e "$ROOT/scripts/setup/install-chatgpt-web.sh"
+python3 "$ROOT/scripts/route_agent.py" --difficulty easy --domain backend | grep -q '"decision": "stay_local"'
+python3 -m unittest discover -s "$ROOT/scripts" -p 'test_route_agent.py'
 "$ROOT/bin/agent-harness" memory --help >/dev/null
 "$ROOT/bin/agent-memory" --help >/dev/null
 
