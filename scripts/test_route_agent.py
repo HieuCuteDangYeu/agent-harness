@@ -119,6 +119,20 @@ class RoutingTests(unittest.TestCase):
         self.usage.write_text(json.dumps(data))
         self.assertEqual(plan(self.args, NOW)["selected"]["agent"], "agent-b")
 
+    def test_rejects_example_profiles_and_usage(self):
+        data = json.loads(self.config.read_text())
+        data["_example_only"] = True
+        self.config.write_text(json.dumps(data))
+        with self.assertRaisesRegex(ValueError, "Example routing"):
+            plan(self.args, NOW)
+
+    def test_rejects_naive_timestamps(self):
+        self.write_usage(10, 10)
+        data = json.loads(self.usage.read_text())
+        data["observed_at"] = "2026-11-05T00:00:00"
+        self.usage.write_text(json.dumps(data))
+        self.assertEqual(plan(self.args, NOW)["decision"], "manual_review")
+
     def test_expired_reset_forces_refresh(self):
         data = json.loads(self.usage.read_text())
         data["pools"]["a:main"]["windows"][0]["resets_at"] = (NOW - timedelta(minutes=1)).isoformat()
