@@ -1,5 +1,5 @@
 {
-  "_example_only": "Not live data; replace with values freshly read from Orca Usage for the active account/model pool.",
+  "_example_only": true,
   "observed_at": "2026-11-05T00:00:00Z",
   "pools": {
     "codex:personal": {
