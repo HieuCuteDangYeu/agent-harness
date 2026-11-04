@@ -1,62 +1,56 @@
-# Architecture
-
-The harness is a **policy layer**, not a replacement for Orca's own
-orchestration, worktrees, or session management.
+# Architecture: one controller, one prompt
 
 ```text
-User in Orca GUI
-  -> any enabled parent agent CLI
-  -> AGENTS.md: task triage
-       easy / trivial -> work in current session
-       moderate -> usually work in current session
-       hard / critical -> consider delegation
-  -> inspect agent capabilities + actual model/effort support
-  -> inspect Orca Usage for active account and model-group headroom
-  -> optional advisory "agent-harness route" (fresh manual snapshot)
-  -> Orca live orchestration skill
-  -> Orca Run: specialist implementation -> verification -> independent review
-  -> PASS/BLOCK gate -> diff review -> authorized delivery
+Orca GUI / any enabled parent CLI
+   |
+   +-- project AGENTS.md: short triage, safety and evidence contract
+   |
+   +-- existing session (normal small tasks / native subagents)
+   |           |
+   |           +-- native Ponytail quality rules, if installed
+   |           +-- relevant memory from agentmemory, if connected
+   |
+   +-- Orca orchestration skill (when supervised workers help)
+               |
+               +-- agent/model selection (capability, effort, quota)
+               +-- Orca Runs, worktrees, worker sessions and gates
+               +-- native review and verification
+   |
+   +-- validated lessons -> agentmemory (with opt-in hooks)
+   +-- durable project invariant -> reviewed project skill (rare)
 ```
 
-## Responsibilities
+## Ownership boundaries
 
-**Orca GUI and live skills:** repository and worktree state, running
-agents (including custom CLIs), subscriptions/accounts, model/effort
-launch controls, usage, Run/task lifecycle, messages, approvals, and
-review gates. Always read `agent-harness orca guide` before mutating a Run;
-Orca's CLI and UI capabilities may change.
+Orca manages agent sessions, worktrees, terminal operations, Runs,
+dependencies, messages, gates, and its own skills. Never maintain a
+second task DAG, host runner, or copy of its live guides.
 
-**AGENTS.md + repository skills:** triage, evidence standards, provider
-selection, quota caution, security, dirty-checkout handling, memory and
-skill priorities. Parent agents need not be Codex. A local skill should
-encode only stable and non-obvious project invariants.
+Ponytail is an optional provider-host plugin for compact implementation
+and code review. Do not duplicate its prompt in AGENTS.md or a generated
+repository skill.
 
-**Optional advisory router:** `scripts/route_agent.py` reads
-user-configured capability profiles and a fresh snapshot of Orca Usage.
-It does not query or automate Orca, guess provider quotas, or create
-worker sessions. It selects abstract supported effort and emits JSON
-recommendations. See [routing](routing.md).
+agentmemory is an optional local history system. Its MCP and capture
+hooks are configured through upstream integration paths. Orca's agent
+status hooks are separate, and native hooks from multiple integrations
+must not be duplicated for the same event.
 
-**Optional integrations:** Ponytail and local agentmemory. Their
-agent-specific installers remain best-effort and opt-in, not hard
-dependencies for using other agents.
+The harness maintains only a short project AGENTS.md contract, optional
+integration setup, and an optional quota-based routing advisory helper
+that does not dispatch agents. It does **not** pretend a manually
+recorded quota is live data.
 
-## Trust and failure boundaries
+## Skill lifecycle
 
-Never let stale memory, a quota snapshot, or an agent's claimed skills
-override current code/tests or user requirements. Usage can be unavailable
-or account-specific; missing numbers do not mean unlimited capacity.
-A worker must not silently bypass permission controls or send secrets
-to another provider. Review independent output and actual verification
-evidence for risky work.
+Official Orca skills: installed by Orca; updated through Orca UI or CLI;
+optional off-by-default Linux timer calls Orca's updater.
 
-Orca worktrees do not inherit dirty edits from another checkout.
-Never silently stash, commit, or lose edits. Keep one owner per
-implementation task and avoid creating a second orchestration DAG.
+Ponytail: updated via the agent host's plugin marketplace/extension flow;
+the harness doesn't vendor or replace it.
 
-## Retired bridge
+agentmemory: session/event capture can be automatic after opt-in;
+software upgrades are explicit because the runtime and data may change.
+Knowledge is promoted to reviewed project-specific skills only when
+stable and supported by code/tests.
 
-The retired browser bridge is no longer configured or launched by this
-repository. Any separately installed software is left untouched. Agent
-availability comes from the current Orca configuration, not from claims
-about unrelated chat products.
+See [skills and memory](skills-memory.md) and [routing](routing.md).
