@@ -111,11 +111,11 @@ ADB/browser; an independent security reviewer needs demonstrated security
 ability; a low-capability but high-quota provider is not automatically the
 best choice for a critical migration.
 
-## ChatGPT Work vs Orca
+## Agent-runtime boundary
 
-ChatGPT Work can handle web, local, and connected-app tasks, depending on
-the enabled product experience. It does **not** automatically become an
-Orca terminal agent or a subscription API. The old Codex Web GPT browser
-bridge has therefore been retired from this harness without touching
-existing installations on the user's computer. Native Orca agent CLIs
-remain the supported worker entry point.
+The harness targets **reusable repository workflows**. It must not infer
+available agents or credentials from the current conversation, a consumer
+chat subscription, or a product announcement. Only agents actually
+configured in Orca and supported by its current runtime are eligible for
+delegation. The retired browser bridge is not an agent execution dependency;
+existing machine-level installations remain untouched.
