@@ -57,7 +57,12 @@ case "$command" in
     # Verify that the installed Orca CLI understands its own skill update
     # command before setting up unattended invocations.
     bash "$SERVICE_SCRIPT" path >/dev/null
-    if [[ "$SERVICE_SCRIPT" == *'"'* || "$SERVICE_SCRIPT" == *
+    case "$SERVICE_SCRIPT" in
+      *\"*|*$'\n'*|*%*)
+        echo "Unsupported character in harness path for systemd unit" >&2
+        exit 2
+        ;;
+    esac
     mkdir -p "$UNIT_DIR"
     cat > "$SERVICE" <<UNIT
 # Managed by agent-harness
