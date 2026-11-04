@@ -21,9 +21,10 @@ The harness does not launch its own parallel orchestration runtime.
 - **Optional integrations:** Ponytail and agentmemory are opt-in and may
   support only some agent CLIs.
 
-Codex Web GPT is **retired from setup**. ChatGPT Work is a separate
-ChatGPT experience, not a drop-in Orca CLI worker. The harness neither
-installs nor removes any existing browser-bridge software.
+The legacy browser-bridge integration is **retired from setup**. The
+harness does not install or uninstall previously configured machine-level
+software. It relies on Orca-supported agent CLIs rather than a particular
+chat product or subscription.
 
 ## Install
 
