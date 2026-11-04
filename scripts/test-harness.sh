@@ -151,6 +151,8 @@ env "${AUTO_ENV[@]}" "$ROOT/bin/agent-harness" orca auto-update enable >/dev/nul
 UNIT_DIR="$TMP/config/systemd/user"
 test -f "$UNIT_DIR/agent-harness-orca-skills.service"
 test -f "$UNIT_DIR/agent-harness-orca-skills.timer"
+grep -q 'Environment="ORCA_CLI_COMMAND=' "$UNIT_DIR/agent-harness-orca-skills.service"
+grep -q 'Environment="PATH=' "$UNIT_DIR/agent-harness-orca-skills.service"
 grep -q '^OnCalendar=daily$' "$UNIT_DIR/agent-harness-orca-skills.timer"
 env "${AUTO_ENV[@]}" "$ROOT/bin/agent-harness" orca auto-update status | grep -q enabled
 env "${AUTO_ENV[@]}" "$ROOT/bin/agent-harness" orca auto-update disable >/dev/null
