@@ -76,6 +76,6 @@ By default work remains local. A push, PR, or merge requires explicit
 authorization. For Orca-specific skills use the installed guide, not
 older copied CLI syntax.
 
-The old `chatgpt-web` subcommand is disabled. Use native Orca agents,
-and use ChatGPT Work separately for eligible ChatGPT web/connected-app
-tasks; it is not an Orca provider credential.
+The legacy `chatgpt-web` subcommand is disabled. Use Orca-supported
+agent CLIs configured on this machine; do not treat a chat subscription
+as an automatically available agent or API credential.
