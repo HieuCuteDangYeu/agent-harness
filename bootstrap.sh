@@ -82,7 +82,7 @@ else
   "$INSTALL_DIR/bin/agent-harness" ready "$TARGET" "$@"
 fi
 
-# Managed Markdown migration is owned by bin/agent-harness. It refreshes every
-# untouched generated contract, preserves project-owned edits, uses the prior
-# installed template snapshot for normal upgrades, and falls back to the
-# historical hash catalog to repair installations skipped by older migrations.
+# Project policy migration is owned by bin/agent-harness. It refreshes only
+# untouched generated AGENTS.md and retires obsolete generic skill shims only
+# when an exact previous-template or historical blob hash proves ownership.
+# Project-customized prompts and skills remain untouched.
