@@ -118,6 +118,11 @@ sync_managed_template() {
     return 1
   fi
 
+  if [[ -L "$dst" ]]; then
+    echo "KEEP    $dst (symlink/project-owned)"
+    return 0
+  fi
+
   if [[ ! -e "$dst" && ! -L "$dst" ]]; then
     mkdir -p "$(dirname "$dst")"
     cp "$src" "$dst"
@@ -155,7 +160,7 @@ sync_managed_template() {
 
 remove_if_unchanged_hash() {
   local dst="$1" expected_hash="$2"
-  if [[ -f "$dst" ]] && [[ "$(git hash-object "$dst" 2>/dev/null || true)" == "$expected_hash" ]]; then
+  if [[ -f "$dst" && ! -L "$dst" ]] && [[ "$(git hash-object "$dst" 2>/dev/null || true)" == "$expected_hash" ]]; then
     rm -f "$dst"
     echo "REMOVE  $dst (obsolete generated file)"
     rmdir "$(dirname "$dst")" 2>/dev/null || true
@@ -173,7 +178,7 @@ remove_generated_orchestrator_doc() {
     2109e8a976d18cf10343e77cb708c63ec1e0f944 \
     9eecbcd78dae935f99627026c9a36698455402a1 \
     7536e45d9a3a2759b3235dc51ba0f490e3f4c128; do
-    if [[ -f "$dst" ]] && [[ "$(git hash-object "$dst" 2>/dev/null || true)" == "$hash" ]]; then
+    if [[ -f "$dst" && ! -L "$dst" ]] && [[ "$(git hash-object "$dst" 2>/dev/null || true)" == "$hash" ]]; then
       rm -f "$dst"
       echo "REMOVE  $dst (orchestration policy moved to skills)"
       rmdir "$(dirname "$dst")" 2>/dev/null || true
