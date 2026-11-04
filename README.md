@@ -1,87 +1,77 @@
 # agent-harness
 
-A lightweight, **agent-neutral policy and integration layer for Orca**.
-Choose any Orca-supported CLI as parent or worker (Codex, Claude Code,
-Gemini, OpenCode, Antigravity, Cursor, Copilot, Pi, or a custom CLI).
-The harness does not launch its own parallel orchestration runtime.
+A small **project policy + installer**, not a second orchestration system. Orca
+runs any supported coding agent; native agent plugins supply quality guidance
+and memory. A project receives only one managed prompt: `AGENTS.md`.
 
-## Design
-
-- **Current session first:** trivial/easy tasks run locally; moderate tasks
-  normally do too. Delegate only for substantial complexity, specialist
-  capability, independent verification, or safe worktree isolation.
-- **Adaptive effort:** low for simple tasks, medium for bounded tasks, high
-  for challenging work, highest supported effort for critical work.
-- **Capability and quota:** rank available agents by task strength and the
-  *active* account/model-group quota pool. Orca Usage is authoritative when
-  available. Unknown or stale usage is not free quota.
-- **Orca owns execution:** GUI, Runs, worktrees, worker sessions, review,
-  and decision gates. The harness provides policy and an optional
-  machine-readable **advisory** router; it never duplicates Orca.
-- **Optional integrations:** Ponytail and agentmemory are opt-in and may
-  support only some agent CLIs.
-
-The legacy browser-bridge integration is **retired from setup**. The
-harness does not install or uninstall previously configured machine-level
-software. It relies on Orca-supported agent CLIs rather than a particular
-chat product or subscription.
+| Responsibility | Source of truth |
+| --- | --- |
+| Agent sessions, worktrees, Runs, task gates | Orca + its official `orca-cli` and `orchestration` skills |
+| Desktop, device, Linear, workspace tooling | Relevant official Orca skills, loaded only when needed |
+| Small changes, YAGNI, optional diff review | Official [Ponytail](https://github.com/DietrichGebert/ponytail) plugin |
+| Cross-session recall and captured lessons | Official [agentmemory](https://github.com/rohitg00/agentmemory) integration |
+| Project-specific architectural invariants | Project-owned `.agents/skills/<name>/SKILL.md`, only when justified |
+| Difficulty/effort/worker selection | Short `AGENTS.md` rules; optional `agent-harness route` advisory tool |
 
 ## Install
 
-Install Orca from [onorca.dev](https://www.onorca.dev/docs/install),
-register its CLI, then run inside a repository:
+Install [Orca](https://www.onorca.dev/docs/install), register its CLI in
+Settings, and run inside a project's Git checkout:
 
 ```bash
 bash <(curl -fsSL https://raw.githubusercontent.com/HieuCuteDangYeu/agent-harness/main/bootstrap.sh)
 ```
 
-This installs `AGENTS.md` and the managed compatibility skills. Orca's
-version-matched orchestration skills are installed when available.
+The normal `ready` flow installs/upgrades the project's **one managed
+`AGENTS.md`** and installs Orca's official `orca-cli`, `orchestration`,
+and `computer-use` skills when Orca is available. Android skill installation
+is conditional on `adb`. There are no project-level generic skill shims.
 
-Optional setup:
+Optional integrations (run interactively and review the hooks requested):
 
 ```bash
-agent-harness ready . --with-agentmemory
 agent-harness ready . --with-ponytail
-agent-harness doctor .
-agent-harness orca guide
+agent-harness ready . --with-agentmemory
+agent-harness memory connect claude-code --with-hooks   # only if no native memory plugin hooks
 ```
 
-`ready` does **not** install optional agent-specific plugins by default.
-Ponytail currently has Codex/Antigravity integration; agentmemory can
-also be connected to compatible CLIs via their own MCP setup.
+`--with-agentmemory` asks separately before enabling automatic session/event
+capture. To avoid double-capture, Codex uses its native agentmemory plugin
+**or** the MCP-only connector, not both sets of hooks.
 
-## Daily workflow
+## Skills and memory stay current
 
-Open Orca, select the repository, and launch whichever configured agent
-fits your task. For a small edit, ask it to execute directly. For complex
-work, ask it to follow `AGENTS.md`, inspect Orca Usage, load the live
-`orchestration` skill, use the smallest useful task graph, run tests and
-independent review when warranted, and deliver only on PASS.
-
-To inspect advisory routing with a fresh **manually verified** quota
-snapshot:
+Use Orca's **Skills → Update** UI for built-in skills, or its version-matched
+CLI:
 
 ```bash
-agent-harness route --difficulty hard --domain backend \
-  --config ~/.config/agent-harness/agents.json \
-  --usage ~/.config/agent-harness/usage.json
+agent-harness orca update                   # official Orca updater
+agent-harness orca auto-update enable       # optional Linux user timer, daily
+agent-harness orca auto-update status
+agent-harness orca auto-update disable
 ```
 
-The `route` helper uses Python 3 standard library only. It cannot
-read live Orca quotas or start workers. See [Adaptive routing](docs/routing.md)
-for configuration, limits, examples, and selection rules.
+The daily timer is **off by default** and touches only **already installed
+Orca skills**. It doesn't update Ponytail plugins, agentmemory binaries, or
+project-authored skills. For those, use each upstream host/plugin updater
+and review changes. Automatic learning comes from supported **agentmemory
+capture hooks** after explicit opt-in, not an unattended LLM rewriting
+`AGENTS.md` or project skills.
 
-## Managed template upgrades
+## Work
 
-Untouched generated `AGENTS.md` and `.agents/skills/*` templates are
-refreshed during bootstrap using the previous-template snapshot and a
-historical hash catalog. Project-owned changes are preserved.
+Start any configured agent in Orca. Small tasks stay in the parent session;
+complex tasks may use specialized Orca workers with supported reasoning levels,
+quota headroom, and independent verification. Current code/tests override
+stored memory. Projects remain unpushed unless shipping was authorized.
 
-## Documentation
+For provider-neutral advisory routing, see [routing](docs/routing.md); it needs
+an actual fresh Orca Usage snapshot and never pretends it has a live quota API.
 
+## Guides
+
+- [Skills and memory ownership](docs/skills-memory.md)
 - [First-time setup](docs/first-time-setup.md)
-- [Usage](docs/usage.md)
+- [Everyday use](docs/usage.md)
 - [Architecture](docs/architecture.md)
-- [Adaptive routing and quota snapshots](docs/routing.md)
-- [Migration and template safety](docs/migration.md)
+- [Safe upgrade/migration](docs/migration.md)
