@@ -4,8 +4,8 @@
    its CLI from Settings. Review available coding agents, permissions,
    model/effort controls, usage pools, and repository worktrees.
 2. In a project checkout, run the [bootstrap command](../README.md#install).
-   It installs `AGENTS.md` and the on-demand `project-learning`
-   skill from the boilerplate, plus version-matched Orca core skills (`orca-cli`, `orchestration`, `computer-use`), and installs
+   It installs `AGENTS.md` and on-demand `project-learning` and
+   `task-routing` skills from the boilerplate, plus version-matched Orca core skills (`orca-cli`, `orchestration`, `computer-use`), and installs
    the Android emulator skill when `adb` is available.
 3. Optional integrations: `agent-harness ready . --with-ponytail` and
    `agent-harness ready . --with-agentmemory`. The latter prompts
@@ -31,7 +31,10 @@ The harness only deploys files from `templates/`; its own `docs/`
 are not project prompts or skills. It never overwrites customized
 project instructions. Untouched obsolete generic skills are retired
 using exact historical hashes, and customized files are preserved.
-See [migration](migration.md) and [skill ownership](skills-memory.md).
+See [migration](migration.md) and the actual installed
+[`project-learning`](../templates/.agents/skills/project-learning/SKILL.md)
+and [`task-routing`](../templates/.agents/skills/task-routing/SKILL.md)
+skill sources.
 
 ## Security
 
