@@ -23,7 +23,8 @@ assert_no_generic_skills() {
 "$ROOT/bin/agent-harness" doctor "$REPO" >/dev/null
 cmp "$ROOT/templates/AGENTS.md" "$REPO/AGENTS.md"
 cmp "$ROOT/templates/.agents/skills/project-learning/SKILL.md" "$REPO/.agents/skills/project-learning/SKILL.md"
-grep -q '^name: project-learning
+grep -q '^name: project-learning' "$REPO/.agents/skills/project-learning/SKILL.md"
+assert_no_generic_skills "$REPO"
 "$ROOT/bin/agent-harness" init "$REPO" >"$TMP/second.log"
 ! grep -qE '^(CREATE|MIGRATE|REMOVE) ' "$TMP/second.log"
 
