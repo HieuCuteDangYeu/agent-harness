@@ -1,0 +1,36 @@
+{
+  "_example_only": true,
+  "observed_at": "2026-11-05T00:00:00Z",
+  "pools": {
+    "codex:personal": {
+      "status": "available",
+      "windows": [
+        {
+          "name": "5h",
+          "used_percent": 40
+        },
+        {
+          "name": "weekly",
+          "used_percent": 60
+        }
+      ]
+    },
+    "claude:personal": {
+      "status": "available",
+      "windows": [
+        {
+          "name": "5h",
+          "used_percent": 35
+        },
+        {
+          "name": "weekly",
+          "used_percent": 65
+        }
+      ]
+    },
+    "custom:account-or-model-pool": {
+      "status": "unavailable",
+      "windows": []
+    }
+  }
+}

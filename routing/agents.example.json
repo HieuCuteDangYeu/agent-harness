@@ -1,0 +1,60 @@
+{
+  "agents": [
+    {
+      "id": "codex-personal",
+      "provider": "openai",
+      "quota_key": "codex:personal",
+      "enabled": false,
+      "strengths": {
+        "backend": 4,
+        "frontend": 4,
+        "security": 4,
+        "testing": 4,
+        "docs": 4,
+        "visual": 2
+      },
+      "efforts": [
+        "low",
+        "medium",
+        "high"
+      ]
+    },
+    {
+      "id": "claude-personal",
+      "provider": "anthropic",
+      "quota_key": "claude:personal",
+      "enabled": false,
+      "strengths": {
+        "backend": 4,
+        "frontend": 4,
+        "security": 4,
+        "testing": 4,
+        "docs": 4,
+        "visual": 3
+      },
+      "efforts": [
+        "low",
+        "medium",
+        "high"
+      ]
+    },
+    {
+      "id": "custom-agent",
+      "provider": "custom",
+      "quota_key": "custom:account-or-model-pool",
+      "enabled": false,
+      "strengths": {
+        "backend": 3,
+        "frontend": 3,
+        "security": 3,
+        "testing": 3,
+        "docs": 3,
+        "visual": 3
+      },
+      "efforts": [
+        "medium"
+      ]
+    }
+  ],
+  "_example_only": true
+}

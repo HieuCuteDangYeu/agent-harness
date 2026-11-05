@@ -23,11 +23,11 @@ jobs:
           bash -n bin/agent-memory
           bash -n scripts/test-harness.sh
           bash -n scripts/setup/install-ponytail.sh
-          bash -n scripts/setup/install-chatgpt-web.sh
-          bash -n scripts/setup/chatgpt-web-control.sh
+          python3 -m py_compile scripts/route_agent.py scripts/test_route_agent.py
           bash -n scripts/setup/install-agentmemory.sh
           bash -n scripts/setup/agentmemory-service.sh
           bash -n scripts/setup/orca-control.sh
+          bash -n scripts/setup/orca-skill-updates.sh
 
       - name: Run harness smoke test
         run: ./scripts/test-harness.sh

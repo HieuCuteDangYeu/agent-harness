@@ -186,7 +186,7 @@ agent-harness memory logs [lines]
 agent-harness memory viewer
 agent-harness memory data-dir
 agent-harness memory doctor [args...]
-agent-harness memory upgrade [args...]
+agent-harness memory upgrade [args...]\nagent-harness memory connect <agent> [--with-hooks]
 
 agent-harness starts agentmemory detached so project setup never occupies your
 terminal. Persistent memory data is kept outside project repositories.
@@ -228,6 +228,12 @@ case "$command" in
     stop_service || true
     npx -y "$PACKAGE" upgrade "$@"
     start_service
+    ;;
+  connect)
+    need npx
+    [[ $# -ge 1 ]] || { echo "Specify an upstream-supported agent (e.g. claude-code, gemini-cli, antigravity-cli)." >&2; exit 2; }
+    echo "Review existing plugin hooks before using --with-hooks to avoid duplicate capture." >&2
+    exec env CI=1 npx -y "$PACKAGE" connect "$@"
     ;;
   help|-h|--help)
     usage

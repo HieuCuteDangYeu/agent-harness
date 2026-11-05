@@ -15,9 +15,8 @@ TARGET="."
 YES=0
 CORE_ONLY=0
 SKIP_ORCA=0
-SKIP_PONYTAIL=0
-SKIP_CHATGPT_WEB=0
-SKIP_AGENTMEMORY=0
+SKIP_PONYTAIL=1
+SKIP_AGENTMEMORY=1
 NONINTERACTIVE="${AGENT_HARNESS_NONINTERACTIVE:-0}"
 
 log() { printf '%s\n' "$*"; }
@@ -31,16 +30,19 @@ agent-harness ready [path] [options]
 agent-harness doctor [path]
 agent-harness version
 agent-harness orca <path|status|open|setup|update|guide|doctor>
-agent-harness chatgpt-web <status|open|repair>
+agent-harness route --difficulty <trivial|easy|moderate|hard|critical> --domain <name> [--config path --usage path]
+agent-harness chatgpt-web (retired; compatibility error)
 agent-harness memory <start|status|stop|restart|logs|viewer|data-dir|doctor|upgrade> [...]
 
 ready options:
   --yes
   --core-only
   --skip-orca
-  --skip-ponytail
-  --skip-chatgpt-web
-  --skip-agentmemory
+  --with-ponytail
+  --with-agentmemory
+  --skip-ponytail (legacy)
+  --skip-chatgpt-web (legacy no-op)
+  --skip-agentmemory (legacy)
   --non-interactive
 USAGE
 }
@@ -52,8 +54,10 @@ parse_target_and_flags() {
       --yes|-y) YES=1 ;;
       --core-only) CORE_ONLY=1 ;;
       --skip-orca) SKIP_ORCA=1 ;;
+      --with-ponytail) SKIP_PONYTAIL=0 ;;
+      --with-agentmemory) SKIP_AGENTMEMORY=0 ;;
       --skip-ponytail) SKIP_PONYTAIL=1 ;;
-      --skip-chatgpt-web) SKIP_CHATGPT_WEB=1 ;;
+      --skip-chatgpt-web) warn 'Codex Web GPT integration was retired; this flag is now a no-op' ;;
       --skip-agentmemory|--skip-memory) SKIP_AGENTMEMORY=1 ;;
       --non-interactive) NONINTERACTIVE=1 ;;
       -h|--help) usage; exit 0 ;;
@@ -114,7 +118,12 @@ sync_managed_template() {
     return 1
   fi
 
-  if [[ ! -e "$dst" ]]; then
+  if [[ -L "$dst" ]]; then
+    echo "KEEP    $dst (symlink/project-owned)"
+    return 0
+  fi
+
+  if [[ ! -e "$dst" && ! -L "$dst" ]]; then
     mkdir -p "$(dirname "$dst")"
     cp "$src" "$dst"
     echo "CREATE  $dst"
@@ -149,17 +158,9 @@ sync_managed_template() {
   fi
 }
 
-replace_legacy_if_present() {
-  local src="$1" dst="$2" marker="$3"
-  if [[ -f "$dst" ]] && grep -qF "$marker" "$dst"; then
-    cp "$src" "$dst"
-    echo "MIGRATE $dst"
-  fi
-}
-
 remove_if_unchanged_hash() {
   local dst="$1" expected_hash="$2"
-  if [[ -f "$dst" ]] && [[ "$(git hash-object "$dst" 2>/dev/null || true)" == "$expected_hash" ]]; then
+  if [[ -f "$dst" && ! -L "$dst" ]] && [[ "$(git hash-object "$dst" 2>/dev/null || true)" == "$expected_hash" ]]; then
     rm -f "$dst"
     echo "REMOVE  $dst (obsolete generated file)"
     rmdir "$(dirname "$dst")" 2>/dev/null || true
@@ -177,22 +178,32 @@ remove_generated_orchestrator_doc() {
     2109e8a976d18cf10343e77cb708c63ec1e0f944 \
     9eecbcd78dae935f99627026c9a36698455402a1 \
     7536e45d9a3a2759b3235dc51ba0f490e3f4c128; do
-    if [[ -f "$dst" ]] && [[ "$(git hash-object "$dst" 2>/dev/null || true)" == "$hash" ]]; then
+    if [[ -f "$dst" && ! -L "$dst" ]] && [[ "$(git hash-object "$dst" 2>/dev/null || true)" == "$hash" ]]; then
       rm -f "$dst"
       echo "REMOVE  $dst (orchestration policy moved to skills)"
       rmdir "$(dirname "$dst")" 2>/dev/null || true
       return
     fi
   done
-  if [[ -f "$dst" ]] && grep -qF "TencentDB Agent Memory" "$dst"; then
-    rm -f "$dst"
-    echo "REMOVE  $dst (legacy generated orchestrator)"
-  fi
 }
 
-install_skill() {
-  local skill="$1"
-  sync_managed_template ".agents/skills/$skill/SKILL.md"
+retire_generated_skill() {
+  local rel=".agents/skills/$1/SKILL.md"
+  local dst="$TARGET/$rel"
+  [[ -f "$dst" && ! -L "$dst" ]] || return 0
+
+  local current_hash
+  current_hash="$(git_blob_hash "$dst")"
+  if [[ -n "$current_hash" ]] && {
+       known_managed_hash "$rel" "$current_hash" ||
+       matches_previous_template "$rel" "$current_hash"
+     }; then
+    rm -f "$dst"
+    echo "REMOVE  $dst (untouched obsolete harness shim)"
+    rmdir "$(dirname "$dst")" 2>/dev/null || true
+  else
+    echo "KEEP    $dst (project-owned/customized; review manually)"
+  fi
 }
 
 resolve_target() {
@@ -207,23 +218,26 @@ init_harness() {
   log ""
 
   sync_managed_template "AGENTS.md"
-  replace_legacy_if_present "$TEMPLATES/AGENTS.md" "$TARGET/AGENTS.md" 'check shared memory when `agent-memory` is available'
 
-  install_skill repository-orchestrator
-  install_skill repo-skill-bootstrap
-  install_skill skill-discovery
-  install_skill skill-maintenance
-  install_skill shared-memory
-  replace_legacy_if_present "$TEMPLATES/.agents/skills/shared-memory/SKILL.md" "$TARGET/.agents/skills/shared-memory/SKILL.md" "TencentDB Agent Memory"
+  # Orca and integration plugins already provide these generic capabilities.
+  # Retire only files proven to be untouched harness-generated shims.
+  local skill
+  for skill in repository-orchestrator repo-skill-bootstrap skill-discovery skill-maintenance shared-memory; do
+    retire_generated_skill "$skill"
+  done
+
+  # This is the only harness-specific on-demand skill shipped to projects.
+  # Generic Orca/Ponytail/agentmemory skills remain upstream-managed.
+  sync_managed_template ".agents/skills/project-learning/SKILL.md"
+  sync_managed_template ".agents/skills/task-routing/SKILL.md"
 
   remove_if_unchanged_hash "$TARGET/.github/ISSUE_TEMPLATE/agent-task.md" "1a7563227f79eb2edd6ecb83ad4fd38fbadcaf35"
   remove_if_unchanged_hash "$TARGET/.github/pull_request_template.md" "180a428ed4da1e5fc621e8d86ddd6270f50e62e3"
   remove_if_unchanged_hash "$TARGET/scripts/agents/create-worktree.sh" "7a87ca8fc3505b4c5ccfd535bca6a81d216482f6"
   remove_generated_orchestrator_doc
 
-  if [[ -f "$TARGET/scripts/agents/agent-memory" ]] && grep -qF "TencentDB Agent Memory" "$TARGET/scripts/agents/agent-memory"; then
-    rm -f "$TARGET/scripts/agents/agent-memory"
-    echo "REMOVE  $TARGET/scripts/agents/agent-memory (legacy Tencent helper)"
+  if [[ -f "$TARGET/scripts/agents/agent-memory" ]]; then
+    warn "Review deprecated scripts/agents/agent-memory manually; project-owned content is preserved."
   fi
   rmdir "$TARGET/scripts/agents" 2>/dev/null || true
 
@@ -247,15 +261,15 @@ ready_harness() {
   init_harness
 
   if [[ "$CORE_ONLY" -eq 1 ]]; then
-    SKIP_ORCA=1; SKIP_PONYTAIL=1; SKIP_CHATGPT_WEB=1; SKIP_AGENTMEMORY=1
+    SKIP_ORCA=1; SKIP_PONYTAIL=1; SKIP_AGENTMEMORY=1
   fi
 
   log ""
   log "== Machine capability detection =="
   command -v git >/dev/null 2>&1 && ok git || warn "git not found"
   command -v curl >/dev/null 2>&1 && ok curl || warn "curl not found"
-  command -v codex >/dev/null 2>&1 && ok "Codex detected" || warn "Codex not detected"
-  command -v agy >/dev/null 2>&1 && ok "Antigravity CLI detected" || warn "Antigravity CLI not detected (optional)"
+  log 'Agent discovery and supported models are managed by Orca Settings -> Agents.'
+  log 'Any supported CLI agent can be the parent or worker; no Codex/Antigravity requirement.'
 
   local orca_path=""
   orca_path="$(run_setup_script orca-control.sh path 2>/dev/null || true)"
@@ -276,28 +290,21 @@ ready_harness() {
 
   log ""
   if [[ "$SKIP_PONYTAIL" -eq 0 ]]; then
-    if confirm "Install/update Ponytail for detected coding agents?" 1; then
+    if confirm "Install/update Ponytail for supported coding agents?" 0; then
       AGENT_HARNESS_NONINTERACTIVE="$NONINTERACTIVE" run_setup_script install-ponytail.sh || warn "Ponytail setup had warnings"
     else warn "Ponytail setup skipped"; fi
   fi
 
-  log ""
-  if [[ "$SKIP_CHATGPT_WEB" -eq 0 ]]; then
-    log "Codex Web GPT is unofficial browser automation using your signed-in ChatGPT account."
-    if confirm "Set up/open the Codex Web GPT launcher?" 0; then
-      if run_setup_script chatgpt-web-control.sh status >/dev/null 2>&1; then
-        run_setup_script chatgpt-web-control.sh open || warn "Codex Web GPT could not be opened"
-      else
-        AGENT_HARNESS_NONINTERACTIVE="$NONINTERACTIVE" run_setup_script install-chatgpt-web.sh || warn "ChatGPT Web bridge setup had warnings"
-      fi
-    else warn "ChatGPT Web bridge setup skipped"; fi
-  fi
 
-  log ""
   if [[ "$SKIP_AGENTMEMORY" -eq 0 ]]; then
     if [[ "$(node_major || echo 0)" -ge 20 ]] && command -v npx >/dev/null 2>&1; then
       if confirm "Set up keyless local agentmemory (no API key)?" 1; then
-        AGENT_HARNESS_NONINTERACTIVE="$NONINTERACTIVE" run_setup_script install-agentmemory.sh || warn "agentmemory setup needs attention"
+        local memory_capture=0
+        if confirm "Enable supported agentmemory lifecycle hooks (records session/tool content locally)?" 0; then
+          memory_capture=1
+        fi
+        AGENT_HARNESS_MEMORY_CAPTURE="$memory_capture" AGENT_HARNESS_NONINTERACTIVE="$NONINTERACTIVE" run_setup_script install-agentmemory.sh ||
+          warn "agentmemory setup needs attention"
       else warn "agentmemory setup skipped"; fi
     else
       warn "Skipping agentmemory because Node.js 20+ with npx is unavailable"
@@ -309,22 +316,16 @@ ready_harness() {
 
   cat <<'NEXT'
 
-== One-time actions ==
+== Next steps ==
 
-Orca:
-  Open Orca, add this repository, and review Settings -> Agents permissions before autonomous runs.
-  Orca owns Runs, worktrees, worker sessions, messages, and decision gates.
+Open Orca, select the repository, and choose any installed agent in Settings -> Agents.
+For trivial/easy work, act in the current session. For complex tasks, use the
+version-matched Orca orchestration skill and its Runs/worktrees/decision gates.
 
-Codex hooks:
-  Launch Codex, review `/hooks`, trust only accepted Ponytail/agentmemory hooks, then start a new thread.
-
-ChatGPT Web Full Harness:
-  Keep Codex Web GPT running, sign in, run its smoke test, install Web models, enable Full Harness,
-  finish the connector setup, then launch the parent Codex session from Orca.
-
-Orchestration:
-  Ask for the repository orchestrator normally. The local policy loads Orca's live version-matched
-  orchestration guide; Orca can then coordinate Codex and Antigravity sessions in separate worktrees.
+Before dispatching a worker, inspect Orca Usage for the active account and model pool.
+If you want an advisory machine-readable ranking, use 'agent-harness route --help'
+with your own capability profiles and a fresh usage snapshot. The harness never
+assumes access to a live quota API or automatically spends provider quotas.
 NEXT
 }
 
@@ -337,16 +338,14 @@ doctor_harness() {
   }
 
   check AGENTS.md
-  check .agents/skills/repository-orchestrator/SKILL.md
-  check .agents/skills/repo-skill-bootstrap/SKILL.md
-  check .agents/skills/skill-discovery/SKILL.md
-  check .agents/skills/skill-maintenance/SKILL.md
-  check .agents/skills/shared-memory/SKILL.md
+  check .agents/skills/project-learning/SKILL.md
+  check .agents/skills/task-routing/SKILL.md
+  log "INFO    Generic Orca/Ponytail/agentmemory skills are managed by their upstream packages."
+
 
   log ""
   log "External readiness (informational):"
-  command -v codex >/dev/null 2>&1 && ok codex || warn "codex not found"
-  command -v agy >/dev/null 2>&1 && ok agy || warn "agy not found (optional)"
+  log 'Use Orca Settings -> Agents to inspect available CLI agents and models.'
 
   if run_setup_script orca-control.sh path >/dev/null 2>&1; then
     run_setup_script orca-control.sh guide >/dev/null 2>&1 && ok "Orca orchestration guide available" || warn "Orca orchestration skill missing; run 'agent-harness orca setup'"
@@ -355,7 +354,6 @@ doctor_harness() {
     warn "Orca CLI not found"
   fi
 
-  run_setup_script chatgpt-web-control.sh status || true
   if [[ "$(node_major || echo 0)" -ge 20 ]] && command -v npx >/dev/null 2>&1; then ok "Node $(node -v) + npx"; else warn "Node.js 20+ with npx not ready"; fi
   if command -v curl >/dev/null 2>&1 && curl -fsS --max-time 2 http://127.0.0.1:3111/agentmemory/livez >/dev/null 2>&1; then ok "agentmemory reachable on :3111"; else warn "agentmemory not reachable on :3111 (optional)"; fi
   if [[ -f "$HOME/.codex/config.toml" ]] && grep -q '^\[mcp_servers\.agentmemory\]' "$HOME/.codex/config.toml"; then ok "agentmemory MCP configured for Codex"; fi
@@ -368,10 +366,20 @@ case "$COMMAND" in
   doctor) doctor_harness "${1:-.}" ;;
   version) cat "$VERSION_FILE" ;;
   orca) exec bash "$SETUP_DIR/orca-control.sh" "$@" ;;
-  chatgpt-web) exec bash "$SETUP_DIR/chatgpt-web-control.sh" "$@" ;;
+  route)
+    if ! command -v python3 >/dev/null 2>&1; then
+      echo "ERROR   python3 is required for the optional advisory router." >&2
+      exit 127
+    fi
+    exec python3 "$HARNESS_ROOT/scripts/route_agent.py" "$@"
+    ;;
+  chatgpt-web)
+    echo "ERROR   Legacy browser bridge setup was retired. Configure a supported agent in Orca; existing machine-level installations are untouched." >&2
+    exit 2
+    ;;
   memory) exec bash "$SETUP_DIR/agentmemory-service.sh" "$@" ;;
   orchestrate)
-    echo "ERROR   The built-in orchestrator was removed in v0.8.0. Use Orca through the repository-orchestrator skill." >&2
+    echo "ERROR   The built-in orchestrator was retired. Use Orca's installed orchestration skill." >&2
     exit 2
     ;;
   agy)
