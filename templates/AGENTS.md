@@ -1,18 +1,16 @@
 # Project agent contract
 
 ## Do the smallest useful task
-- Use the current session for trivial, easy, and normally moderate work. Split work
-  only for genuine specialization, independent verification, or isolation.
-- For supervised multi-agent work, load **Orca's installed `orchestration` skill**
-  and its live guide (`agent-harness orca guide`) before dispatching. Orca owns
-  Runs, worktrees, workers, messages, and gates. For ordinary terminal/browser/
-  worktree operations use **`orca-cli`**. Never reproduce Orca's CLI reference here.
-- Prefer built-in agent subagents for local decomposition. Use Orca workers
-  when another provider, workspace, or tracked supervision is actually needed.
-- Choose a worker by demonstrated task capability and environment access,
-  then supported model/reasoning effort and actual account/model-pool quota.
-  Use low/medium/high effort according to difficulty; do not invent models,
-  live usage, or effort flags. Unknown quota is not unlimited quota.
+- Keep trivial/easy and usually moderate work in the current session.
+  Prefer native subagents for local decomposition; delegate only when another
+  provider, specialist, workspace, or independent review adds real value.
+- Before substantial cross-agent delegation or high-risk work, load the
+  on-demand `task-routing` skill to select a qualified worker, supported
+  reasoning effort, and verified quota headroom. Unknown quota is not free.
+- Orca alone owns Runs, workers, worktrees, gates, and their commands:
+  consult its installed `orchestration` live guide before dispatching.
+  For ordinary terminal/browser/worktree work, use `orca-cli`; do not copy
+  vendor CLI references into this repository.
 
 ## Use installed capabilities, not duplicate instructions
 - Load `computer-use`, `orca-emulator(-android)`, `orca-linear`,
