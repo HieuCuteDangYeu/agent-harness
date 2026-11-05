@@ -8,6 +8,7 @@
    `orca-cli` skill for ordinary terminals, browser and worktrees.
 4. Match worker capability to the task, check supported model/reasoning
    effort and actual account/model-group quotas, then verify outcomes.
+   For nontrivial delegation, consult the installed `task-routing` skill.
    The optional `agent-harness route` CLI is advisory only.
 5. Keep tests and current code authoritative. Do not ship remotely
    without authorization.
@@ -32,5 +33,7 @@ agent-harness memory status
 agent-harness memory viewer
 ```
 
-See [skills/memory](skills-memory.md), [routing](routing.md), and
-[setup](first-time-setup.md) for plugin-specific configuration.
+For agent-facing guidance, see the **installed**
+[`task-routing`](../templates/.agents/skills/task-routing/SKILL.md)
+and [`project-learning`](../templates/.agents/skills/project-learning/SKILL.md)
+templates. For this harness's machine setup, see [setup](first-time-setup.md).
