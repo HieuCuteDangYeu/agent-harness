@@ -20,15 +20,13 @@
 - If Ponytail is installed, let it supply minimal-change and review guidance;
   do not restate or copy its prompt into project skills. Otherwise prefer
   existing code, platform tools, and the smallest maintainable change.
-- When agentmemory is connected, retrieve relevant history selectively.
-  Current code/tests outrank stored memories. Supported lifecycle hooks may
-  capture sessions automatically, but only verified, durable decisions deserve
-  promotion into project documentation or a project-specific skill.
-- Reuse maintained installed skills. Create or change a repository skill
-  only for a stable, non-obvious invariant backed by current code/tests and
-  a reviewed diff. Do not auto-generate a skill for every completed task.
-  Orca's native skill updater manages installed generic skills; do not
-  vendor them into this repository.
+- When agentmemory is connected, retrieve relevant history selectively;
+  current code/tests outrank memory. Optional capture hooks are not proof
+  of a verified, reusable lesson.
+- After significant verified decisions or recurring bugs, use the on-demand
+  `project-learning` skill to promote durable knowledge into memory and,
+  only when justified, a project-specific skill as a reviewable change.
+  Skip routine edits. Reuse upstream skills rather than vendoring them.
 
 ## Safety and evidence
 - Follow explicit requirements and current code/tests before repository
