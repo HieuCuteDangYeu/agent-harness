@@ -226,6 +226,10 @@ init_harness() {
     retire_generated_skill "$skill"
   done
 
+  # This is the only harness-specific on-demand skill shipped to projects.
+  # Generic Orca/Ponytail/agentmemory skills remain upstream-managed.
+  sync_managed_template ".agents/skills/project-learning/SKILL.md"
+
   remove_if_unchanged_hash "$TARGET/.github/ISSUE_TEMPLATE/agent-task.md" "1a7563227f79eb2edd6ecb83ad4fd38fbadcaf35"
   remove_if_unchanged_hash "$TARGET/.github/pull_request_template.md" "180a428ed4da1e5fc621e8d86ddd6270f50e62e3"
   remove_if_unchanged_hash "$TARGET/scripts/agents/create-worktree.sh" "7a87ca8fc3505b4c5ccfd535bca6a81d216482f6"
@@ -333,6 +337,7 @@ doctor_harness() {
   }
 
   check AGENTS.md
+  check .agents/skills/project-learning/SKILL.md
   log "INFO    Generic Orca/Ponytail/agentmemory skills are managed by their upstream packages."
 
 
