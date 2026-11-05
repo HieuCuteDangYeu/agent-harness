@@ -5,8 +5,8 @@ Earlier releases generated `AGENTS.md` **and five generic skill shims**
 `skill-maintenance`, `shared-memory`). Those shims duplicated Orca
 skills, third-party plugins, and the project policy itself.
 
-The current harness generates **`AGENTS.md` plus one focused
-`project-learning` skill** from `templates/`. It retires redundant old
+The current harness generates **`AGENTS.md` plus two focused
+`project-learning` and `task-routing` skills** from `templates/`. It retires redundant old
 shims only when content identity proves they were untouched harness
 output. Customized files and project-authored skills remain untouched.
 
@@ -32,7 +32,7 @@ future migration without requiring an endless hash registry. The
 historical catalog remains for older installations that skipped updates.
 
 Orca owns its generic skill installation and updates. The on-demand
-`project-learning` template is different: it specifies how **this
-boilerplate** combines verified project knowledge, memory, and skill
-promotion; it does not duplicate Orca's orchestration CLI.
+`project-learning` and `task-routing` templates are different: they
+define this boilerplate's verified knowledge promotion and provider/quota-aware
+delegation policies without copying Orca's orchestration CLI.
 Ponytail and agentmemory are installed from their official sources.
