@@ -35,8 +35,9 @@ hooks are configured through upstream integration paths. Orca's agent
 status hooks are separate, and native hooks from multiple integrations
 must not be duplicated for the same event.
 
-The harness maintains only a short project AGENTS.md contract, optional
-integration setup, and an optional quota-based routing advisory helper
+The harness installs a short project `AGENTS.md` and one conditional
+`project-learning` skill from `templates/`. It also provides optional
+integration setup and a quota-based routing advisory helper
 that does not dispatch agents. It does **not** pretend a manually
 recorded quota is live data.
 
@@ -50,7 +51,8 @@ the harness doesn't vendor or replace it.
 
 agentmemory: session/event capture can be automatic after opt-in;
 software upgrades are explicit because the runtime and data may change.
-Knowledge is promoted to reviewed project-specific skills only when
-stable and supported by code/tests.
+The installed `project-learning` skill enables promoting verified lessons
+into memory or reviewed project-specific skills when warranted, with
+current code/tests as evidence. Internal `docs/` never deploy into projects.
 
 See [skills and memory](skills-memory.md) and [routing](routing.md).
