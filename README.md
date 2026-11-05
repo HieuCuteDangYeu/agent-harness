@@ -12,7 +12,7 @@ system. `templates/` contains what gets installed into target projects;
 | Cross-session recall and captured lessons | Official [agentmemory](https://github.com/rohitg00/agentmemory) integration |
 | Verified project learning | Installed `.agents/skills/project-learning/SKILL.md` (on demand) |
 | Project-specific architectural invariants | Project-owned `.agents/skills/<name>/SKILL.md`, only when justified |
-| Difficulty/effort/worker selection | Short `AGENTS.md` rules; optional `agent-harness route` advisory tool |
+| Difficulty/effort/worker selection | Installed `.agents/skills/task-routing/SKILL.md` + optional advisory CLI |
 
 ## Install
 
@@ -24,7 +24,8 @@ bash <(curl -fsSL https://raw.githubusercontent.com/HieuCuteDangYeu/agent-harnes
 ```
 
 The normal `ready` flow installs/updates **`templates/AGENTS.md`** and
-**`templates/.agents/skills/project-learning/SKILL.md`** into the target
+**both `templates/.agents/skills/project-learning/SKILL.md` and
+`templates/.agents/skills/task-routing/SKILL.md`** into the target
 repository. It also installs Orca's official `orca-cli`, `orchestration`,
 and `computer-use` skills when Orca is available; Android installation
 is conditional on `adb`. No generic Orca/Ponytail/agentmemory prompts
@@ -70,12 +71,15 @@ complex tasks may use specialized Orca workers with supported reasoning levels,
 quota headroom, and independent verification. Current code/tests override
 stored memory. Projects remain unpushed unless shipping was authorized.
 
-For provider-neutral advisory routing, see [routing](docs/routing.md); it needs
-an actual fresh Orca Usage snapshot and never pretends it has a live quota API.
+For task delegation, agents use the [installed task-routing skill](templates/.agents/skills/task-routing/SKILL.md).
+The optional `agent-harness route --help` CLI consumes manually verified
+agent profiles and **fresh** Orca Usage snapshots, never a fictional live API.
+Sample schemas live alongside the implementation in `routing/`.
 
 ## Guides
 
-- [Skills and memory ownership](docs/skills-memory.md)
+- [Installed project-learning skill](templates/.agents/skills/project-learning/SKILL.md)
+- [Installed task-routing skill](templates/.agents/skills/task-routing/SKILL.md)
 - [First-time setup](docs/first-time-setup.md)
 - [Everyday use](docs/usage.md)
 - [Architecture](docs/architecture.md)
