@@ -18,12 +18,14 @@ assert_no_generic_skills() {
   done
 }
 
-# Fresh install has exactly one generated prompt. Subsequent init is idempotent.
+# Fresh install has one policy plus two focused project skills; subsequent init is idempotent.
 "$ROOT/bin/agent-harness" init "$REPO" >/dev/null
 "$ROOT/bin/agent-harness" doctor "$REPO" >/dev/null
 cmp "$ROOT/templates/AGENTS.md" "$REPO/AGENTS.md"
 cmp "$ROOT/templates/.agents/skills/project-learning/SKILL.md" "$REPO/.agents/skills/project-learning/SKILL.md"
+cmp "$ROOT/templates/.agents/skills/task-routing/SKILL.md" "$REPO/.agents/skills/task-routing/SKILL.md"
 grep -q '^name: project-learning' "$REPO/.agents/skills/project-learning/SKILL.md"
+grep -q '^name: task-routing' "$REPO/.agents/skills/task-routing/SKILL.md"
 assert_no_generic_skills "$REPO"
 "$ROOT/bin/agent-harness" init "$REPO" >"$TMP/second.log"
 ! grep -qE '^(CREATE|MIGRATE|REMOVE) ' "$TMP/second.log"
@@ -47,6 +49,7 @@ MANAGED
 "$ROOT/bin/agent-harness" init "$LEGACY" >"$TMP/migration.log"
 cmp "$ROOT/templates/AGENTS.md" "$LEGACY/AGENTS.md"
 cmp "$ROOT/templates/.agents/skills/project-learning/SKILL.md" "$LEGACY/.agents/skills/project-learning/SKILL.md"
+cmp "$ROOT/templates/.agents/skills/task-routing/SKILL.md" "$LEGACY/.agents/skills/task-routing/SKILL.md"
 assert_no_generic_skills "$LEGACY"
 test "$(grep -c 'untouched obsolete harness shim' "$TMP/migration.log")" -eq 5
 
@@ -57,11 +60,14 @@ mkdir -p "$CUSTOM/.agents/skills/skill-discovery"
 printf '%s\n' 'project-specific instructions' >>"$CUSTOM/AGENTS.md"
 printf '%s\n' 'project-specific skill' >"$CUSTOM/.agents/skills/skill-discovery/SKILL.md"
 printf '%s\n' 'local learning customization' >>"$CUSTOM/.agents/skills/project-learning/SKILL.md"
+printf '%s\n' 'local routing customization' >>"$CUSTOM/.agents/skills/task-routing/SKILL.md"
 "$ROOT/bin/agent-harness" init "$CUSTOM" >"$TMP/custom.log"
 grep -q 'project-specific instructions' "$CUSTOM/AGENTS.md"
 grep -q 'project-specific skill' "$CUSTOM/.agents/skills/skill-discovery/SKILL.md"
 grep -q 'local learning customization' "$CUSTOM/.agents/skills/project-learning/SKILL.md"
 grep -q 'project-learning/SKILL.md (modified/project-owned)' "$TMP/custom.log"
+grep -q 'local routing customization' "$CUSTOM/.agents/skills/task-routing/SKILL.md"
+grep -q 'task-routing/SKILL.md (modified/project-owned)' "$TMP/custom.log"
 grep -q 'skill-discovery/SKILL.md (project-owned/customized' "$TMP/custom.log"
 # Marker matching is NOT proof of ownership; historical heuristic deletes are gone.
 printf '%s\n' 'check shared memory when `agent-memory` is available' >"$CUSTOM/AGENTS.md"
@@ -84,6 +90,7 @@ cp "$PREVIOUS/.agents/skills/shared-memory/SKILL.md" "$SNAPSHOT/.agents/skills/s
 AGENT_HARNESS_PREVIOUS_TEMPLATES="$PREVIOUS" "$ROOT/bin/agent-harness" init "$SNAPSHOT" >"$TMP/snapshot.log"
 cmp "$ROOT/templates/AGENTS.md" "$SNAPSHOT/AGENTS.md"
 cmp "$ROOT/templates/.agents/skills/project-learning/SKILL.md" "$SNAPSHOT/.agents/skills/project-learning/SKILL.md"
+cmp "$ROOT/templates/.agents/skills/task-routing/SKILL.md" "$SNAPSHOT/.agents/skills/task-routing/SKILL.md"
 assert_no_generic_skills "$SNAPSHOT"
 grep -q '^MIGRATE .*AGENTS.md (untouched managed template)$' "$TMP/snapshot.log"
 
@@ -102,7 +109,14 @@ for path in scripts/orchestrate.mjs scripts/orchestrator/core.mjs scripts/agy-ru
   test ! -e "$ROOT/$path"
 done
 test -f "$ROOT/templates/.agents/skills/project-learning/SKILL.md"
-test "$(find "$ROOT/templates/.agents/skills" -name SKILL.md | wc -l)" -eq 1
+test -f "$ROOT/templates/.agents/skills/task-routing/SKILL.md"
+test "$(find "$ROOT/templates/.agents/skills" -name SKILL.md | wc -l)" -eq 2
+test ! -e "$ROOT/docs/routing.md"
+test ! -e "$ROOT/docs/skills-memory.md"
+if grep -R -E 'docs/routing\.md|docs/skills-memory\.md|\]\(routing\.md\)|\]\(skills-memory\.md\)' "$ROOT/README.md" "$ROOT/docs/" "$ROOT/templates/" >/dev/null; then
+  echo "Obsolete doc-only skills reference remains" >&2
+  exit 1
+fi
 
 AGENT_HARNESS_NONINTERACTIVE=1 "$ROOT/bin/agent-harness" ready "$REPO" --core-only --non-interactive >/dev/null
 "$ROOT/bin/agent-harness" --help >/dev/null
