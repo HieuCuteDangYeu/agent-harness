@@ -36,7 +36,7 @@ status hooks are separate, and native hooks from multiple integrations
 must not be duplicated for the same event.
 
 The harness installs a short project `AGENTS.md` and one conditional
-`project-learning` skill from `templates/`. It also provides optional
+`project-learning` and `task-routing` skills from `templates/`. It also provides optional
 integration setup and a quota-based routing advisory helper
 that does not dispatch agents. It does **not** pretend a manually
 recorded quota is live data.
@@ -55,4 +55,8 @@ The installed `project-learning` skill enables promoting verified lessons
 into memory or reviewed project-specific skills when warranted, with
 current code/tests as evidence. Internal `docs/` never deploy into projects.
 
-See [skills and memory](skills-memory.md) and [routing](routing.md).
+The deployable behavior is defined in
+[`templates/AGENTS.md`](../templates/AGENTS.md),
+[`project-learning`](../templates/.agents/skills/project-learning/SKILL.md),
+and [`task-routing`](../templates/.agents/skills/task-routing/SKILL.md).
+This architecture document is **not** installed into projects.
