@@ -1,4 +1,8 @@
-# Skills, Ponytail, and memory: official ownership
+# Skills, Ponytail, and memory: harness integration reference
+
+> This file documents **agent-harness itself**. It is never installed in
+> target projects. Runtime instructions belong in `templates/AGENTS.md`
+> and `templates/.agents/skills/project-learning/SKILL.md`.
 
 This harness deliberately does **not** vendor public skill prompts or
 implement its own agent runner. Orca already ships version-matched skills
@@ -89,17 +93,16 @@ trusted long-term architectural rule.
 
 ## Automatic improvement without prompt bloat
 
-After a change has passed its required checks:
+The on-demand **`project-learning` skill is distributed to projects**
+by `agent-harness init` from `templates/.agents/skills/`. It describes
+when to retrieve past decisions, store verified lessons, and make a
+reviewable change to an existing or new project-specific skill.
 
-1. Let configured capture hooks record the session without a separate
-   harness interception layer.
-2. Promote a concise verified root cause, accepted decision, or operational
-   lesson into agentmemory when it is genuinely reusable.
-3. If a lesson becomes a stable, non-obvious **project-specific invariant**,
-   propose an update to a **project-owned** skill or documentation. Make it
-   a normal reviewed diff; never silently rewrite it on each task.
-4. For rules already covered by Orca, Ponytail, agentmemory, tests, or
-   nearby code, add **nothing**. Prefer deterministic CI checks over prose.
+Capture hooks are optional and do not by themselves validate lessons.
+The skill uses upstream integrations rather than implementing a competing
+memory backend or an always-running skill generator. Ordinary edits
+create neither a new memory nor a skill. The integration contract itself
+lives in the boilerplate, not this documentation file.
 
 This avoids a cycle where generated prompt files grow and contradict
 upstream updates. There is no autonomous "skill authoring" daemon.
