@@ -1,8 +1,8 @@
 # agent-harness
 
-A small **project policy + installer**, not a second orchestration system. Orca
-runs any supported coding agent; native agent plugins supply quality guidance
-and memory. A project receives only one managed prompt: `AGENTS.md`.
+A reusable **project boilerplate + installer**, not a second orchestration
+system. `templates/` contains what gets installed into target projects;
+`docs/` documents this harness repository and is **never installed**.
 
 | Responsibility | Source of truth |
 | --- | --- |
@@ -10,6 +10,7 @@ and memory. A project receives only one managed prompt: `AGENTS.md`.
 | Desktop, device, Linear, workspace tooling | Relevant official Orca skills, loaded only when needed |
 | Small changes, YAGNI, optional diff review | Official [Ponytail](https://github.com/DietrichGebert/ponytail) plugin |
 | Cross-session recall and captured lessons | Official [agentmemory](https://github.com/rohitg00/agentmemory) integration |
+| Verified project learning | Installed `.agents/skills/project-learning/SKILL.md` (on demand) |
 | Project-specific architectural invariants | Project-owned `.agents/skills/<name>/SKILL.md`, only when justified |
 | Difficulty/effort/worker selection | Short `AGENTS.md` rules; optional `agent-harness route` advisory tool |
 
@@ -22,10 +23,12 @@ Settings, and run inside a project's Git checkout:
 bash <(curl -fsSL https://raw.githubusercontent.com/HieuCuteDangYeu/agent-harness/main/bootstrap.sh)
 ```
 
-The normal `ready` flow installs/upgrades the project's **one managed
-`AGENTS.md`** and installs Orca's official `orca-cli`, `orchestration`,
-and `computer-use` skills when Orca is available. Android skill installation
-is conditional on `adb`. There are no project-level generic skill shims.
+The normal `ready` flow installs/updates **`templates/AGENTS.md`** and
+**`templates/.agents/skills/project-learning/SKILL.md`** into the target
+repository. It also installs Orca's official `orca-cli`, `orchestration`,
+and `computer-use` skills when Orca is available; Android installation
+is conditional on `adb`. No generic Orca/Ponytail/agentmemory prompts
+are duplicated in the project.
 
 Optional integrations (run interactively and review the hooks requested):
 
@@ -55,8 +58,10 @@ The daily timer is **off by default** and touches only **already installed
 Orca skills**. It doesn't update Ponytail plugins, agentmemory binaries, or
 project-authored skills. For those, use each upstream host/plugin updater
 and review changes. Automatic learning comes from supported **agentmemory
-capture hooks** after explicit opt-in, not an unattended LLM rewriting
-`AGENTS.md` or project skills.
+capture hooks** after explicit opt-in. The installed `project-learning`
+skill conditionally promotes **verified** lessons into memory or a
+reviewable project-owned skill update rather than rewriting generic
+prompts after every task.
 
 ## Work
 
